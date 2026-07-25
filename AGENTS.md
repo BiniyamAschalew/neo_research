@@ -62,7 +62,7 @@ pip install <package>
 
 - Read the relevant plan before editing code.
 - Keep changes scoped to the selected plan unless the user explicitly expands scope.
-- Run relevant tests after modifying code. If tests cannot run, document why in the report.
+- Run relevant tests required by the selected plan or explicitly requested by the human. Do not add broad unrelated verification by default; if no tests are planned or requested, document `Verification: not required by plan or request` when a report is produced.
 - Save plans, reports, and notes under `__board__/`.
 - Do not overwrite another agent's board file unless the human explicitly asks.
 - Do not run `git push` without explicit human instruction.

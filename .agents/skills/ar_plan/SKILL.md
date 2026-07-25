@@ -1,6 +1,6 @@
 ---
 name: ar_plan
-description: Create an AutoResearch shared-board implementation or experiment plan that prioritizes concise modular code, reuse of existing utilities, versioned YAML configs, debugger-ready run files, tests, and an up-to-date repository structure.md.
+description: Create an AutoResearch shared-board implementation or experiment plan that prioritizes concise modular code, reuse of existing utilities, versioned YAML configs, debugger-ready run files, optional verification, and an up-to-date repository structure.md.
 ---
 
 Create an AutoResearch development plan under `__board__/plans/`. Plan for a compact, human-readable codebase before planning new code.
@@ -51,7 +51,7 @@ Use root-level `structure.md` as the repository's concise code map.
 - If it is missing, inspect the code directly and make its creation a required task for the first `$ar_dev` run.
 - Whenever a plan changes source code, require `$ar_dev` to refresh `structure.md` after implementation.
 - Require `structure.md` to list each maintained source file, its one-sentence purpose, and its classes, methods, and functions in language-native signature form with a one-sentence description.
-- Include tests and experiment entrypoints. Exclude dependencies, caches, generated build output, datasets, and `__board__/` artifacts.
+- Include tests, the root `run.py` debugger entrypoint, and version-specific experiment modules. Exclude dependencies, caches, generated build output, datasets, and `__board__/` artifacts.
 
 ## Modularity and Organization Rules
 
@@ -66,16 +66,20 @@ Before proposing a new file, function, or class:
 
 Every plan must name the existing signatures to reuse, the new signatures truly required, and any signatures or files to move, consolidate, or retire.
 
+## Verification Policy
+
+Plans should preserve the original lightweight validation structure: include unit tests when they are justified by the implementation risk or acceptance criteria, and have `$ar_dev` run those planned tests. Do not add broad extra verification by default. Extra checks beyond the plan are opt-in when the human explicitly requests them. The primary root debug run remains the normal experiment validation path.
+
 ## Experiment Config and Debug Contract
 
 For every distinct experiment case, plan:
 
 - One YAML file at `config/<version>/<case>.yaml`; keep experiment parameters in YAML rather than hard-coding them in Python.
-- One thin debug entrypoint under `runs/`. Use `runs/run_<version>.py` for a single case or `runs/run_<version>_<case>.py` for multiple cases. Normalize dots and hyphens in filenames to underscores.
-- A module-level `CONFIG_PATH` constant in each run file that already points to its YAML file, followed by a call into shared experiment logic. The file must run in a Python debugger without requiring the user to construct CLI arguments.
-- A direct command such as `python runs/run_v35_trial.py`.
+- One thin version-specific implementation entrypoint under `runs/`. Use `runs/run_<version>.py` for a single case or `runs/run_<version>_<case>.py` for multiple cases. Normalize dots and hyphens in filenames to underscores. Each module must expose a no-argument `main()` callable and a module-level `CONFIG_PATH`.
+- A root-level `run.py` debugger entrypoint with a visible macro such as `VERSION = "v1"`, set to the latest version, and a builder utility `build_main(version: str)` that imports the corresponding `runs.run_<version>` or `runs.run_<version>_*` module and returns its `main()` callable.
+- A direct root command: `python run.py`. The final debug run must be executed from the repository root, never via a `runs/...` path.
 
-Do not put model, dataset, or experiment implementation in the run file. Keep it as a readable debugger entrypoint. Use portable repository-relative paths and never put secrets or machine-specific absolute paths in configs.
+Do not put model, dataset, or experiment implementation in either runner file. Keep `run.py` as the version selector/import builder and the version-specific module as a readable config-driven entrypoint. Use portable repository-relative paths and never put secrets or machine-specific absolute paths in configs.
 
 ## Planning Workflow
 
@@ -85,7 +89,7 @@ Do not put model, dataset, or experiment implementation in the run file. Keep it
 4. Read and verify `structure.md`, or inspect the repository directly if it does not yet exist.
 5. Inspect relevant source, shared utilities, tests, configs, and run files.
 6. Design the smallest reusable implementation and identify any required consolidation.
-7. Define each YAML config, debug entrypoint, test command, and experiment command.
+7. Define each YAML config, debug entrypoint, optional verification command, and experiment command.
 8. Write `__board__/plans/v{N}.{slug}.md`.
 
 ## Plan Template
@@ -117,18 +121,18 @@ Do not put model, dataset, or experiment implementation in the run file. Keep it
 
 | Case | YAML config | Debug entrypoint | Shared callable | Command |
 |------|-------------|------------------|-----------------|---------|
-| `[case]` | `config/v{N}/[case].yaml` | `runs/run_v{N}_[case].py` | `module.run_experiment(config)` | `python runs/run_v{N}_[case].py` |
+| `[case]` | `config/v{N}/[case].yaml` | `run.py` → `runs/run_v{N}_[case].py::main` | `module.run_experiment(config)` | `python run.py` |
 
-[For a single case, prefer `runs/run_v{N}.py`. State the module-level `CONFIG_PATH` value each entrypoint will contain.]
+[For a single case, use `run.py` as the debugger entrypoint and state the `VERSION` macro plus the version-specific module's `CONFIG_PATH`.]
 
 ## Tasks
 
 - [ ] **Reuse-first implementation**: [Concrete shared modules/signatures to reuse, refactor, or add.]
   - Acceptance: [No duplicated experiment logic; focused modules and callable boundaries are verified.]
-- [ ] **Configs and debug entrypoints**: [Exact YAML and run files.]
-  - Acceptance: [Each run file exposes `CONFIG_PATH` and runs under the debugger with the documented command.]
-- [ ] **Tests and experiment execution**: [Exact unit-test and experiment commands.]
-  - Acceptance: [Test output and experiment artifacts are captured for the report.]
+- [ ] **Configs and debug entrypoints**: [Exact YAML, root `run.py`, and version-specific run files.]
+  - Acceptance: [The version-specific module exposes `CONFIG_PATH` and `main()`; root `run.py` exposes the latest `VERSION`, builds the matching main function, and runs from the repository root with `python run.py`.]
+- [ ] **Validation and experiment execution**: [Exact planned test/check commands and experiment command; mark any additional checks as optional.]
+  - Acceptance: [Tests and checks included in the plan are run; unrelated extra verification is skipped unless explicitly requested; outputs and experiment artifacts are captured for the report.]
 - [ ] **Refresh repository map**: Create or update root `structure.md`.
   - Acceptance: [Changed source files and every class/method/function signature are accurately documented.]
 
@@ -138,8 +142,8 @@ Do not put model, dataset, or experiment implementation in the run file. Keep it
 
 ## Test and Debug Validation
 
-- **Unit tests**: `[exact command]`
-- **Primary debug command**: `python [run-file]`
+- **Unit tests/checks**: `[exact command when included in the plan]`
+- **Primary debug command**: `python run.py`
 - **Config validation**: [How YAML parsing, required fields, and path portability will be checked.]
 - **Manual/debug checkpoints**: [Key call boundaries the human can step through.]
 
@@ -149,7 +153,8 @@ Do not put model, dataset, or experiment implementation in the run file. Keep it
 |------|--------|---------|
 | `src/...` | Create / Modify / Reorganize | [Shared responsibility and why it belongs here.] |
 | `config/v{N}/...yaml` | Create | [Experiment case configuration.] |
-| `runs/run_v{N}...py` | Create | [Thin debugger entrypoint.] |
+| `run.py` | Create / Update | [Root debugger version selector and main-function builder.] |
+| `runs/run_v{N}...py` | Create / Modify | [Thin version-specific config-driven main function.] |
 | `tests/...` | Create / Modify | [Unit coverage.] |
 | `structure.md` | Create / Update | [Post-implementation signature map.] |
 
@@ -175,7 +180,7 @@ Do not put model, dataset, or experiment implementation in the run file. Keep it
 - Cite real files and signatures; do not plan from names alone.
 - Prefer reuse and consolidation over additive duplication.
 - Give every task observable acceptance criteria.
-- Require unit-test output in the final report, not only a pass/fail claim.
+- Include output for tests/checks included in the plan or explicitly requested. If neither applies, record that verification was not required by the plan or request.
 - Require the final report's first line to name the primary debug entrypoint and command.
 - Keep each plan to one coherent iteration.
 - Do not implement code while using this skill.

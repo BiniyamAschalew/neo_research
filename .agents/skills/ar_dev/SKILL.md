@@ -1,6 +1,6 @@
 ---
 name: ar_dev
-description: Execute an AutoResearch plan with reuse-first modular code, versioned YAML experiment configs, debugger-ready run files, unit tests, an updated repository structure.md, and a versioned report bundle under __board__/reports/.
+description: Execute an AutoResearch plan with reuse-first modular code, versioned YAML experiment configs, debugger-ready run files, optional verification, an updated repository structure.md, and a versioned report bundle under __board__/reports/.
 ---
 
 Execute an AutoResearch plan from `__board__/plans/`.
@@ -57,6 +57,15 @@ _Shared observations for Claude, Codex, and the human._
 - When a requirement is ambiguous, make the smallest reasonable decision and document it. Ask the human if the choice would materially expand scope or authority.
 - Do not run `git push` without explicit human instruction.
 
+## Verification Policy
+
+The default development path follows the selected plan: implementation, the repository-root debug run, and the tests or checks explicitly included in that plan. Do not add broad verification that is unrelated to the plan.
+
+- Run unit tests when they are part of the selected plan or when the human explicitly requests tests or verification.
+- Treat an **extra verification bundle** as opt-in for checks beyond the plan. Keep it small and relevant to the task; do not automatically run every possible config, compile, artifact, or reproducibility check.
+- If no tests or checks are included in the plan and none are requested, record `Verification: not required by plan or request` in the report and continue with the primary debug run when the plan includes an experiment.
+- Do not install test-only dependencies unless planned tests or an explicit verification request requires them.
+
 ## Version Resolution
 
 Resolve `<version>` in this order:
@@ -93,6 +102,8 @@ Keep it concise, current, and organized by repository-relative file path. For ev
 - Every function signature and a one-sentence description.
 - The debug/run entrypoint and shared callable relationship when applicable.
 
+The repository-root `run.py` is the primary debugger entrypoint. Include its version macro, builder function, and imported versioned `main()` relationship in the map. Version-specific modules remain under `runs/`, but final validation must invoke the root runner.
+
 Use language-native signatures, including parameters and return annotations when present. Include source files, tests, and experiment run files. Exclude dependencies, caches, generated build output, datasets, and `__board__/` artifacts. For files without classes or functions, record the file purpose and relevant entrypoint behavior.
 
 Use this compact shape:
@@ -118,25 +129,33 @@ For every distinct experiment case:
 1. Create `config/<version>/<case>.yaml`.
 2. Put run parameters in YAML rather than duplicating them in Python. Include seeds and other reproducibility-critical settings.
 3. Use portable repository-relative paths; never store secrets or machine-specific absolute paths.
-4. Create a thin Python entrypoint under `runs/`:
+4. Keep a thin version-specific Python entrypoint under `runs/`:
    - One case: `runs/run_<version-id>.py`
    - Multiple cases: `runs/run_<version-id>_<case>.py`
-5. Define a visible module-level `CONFIG_PATH` constant pointing to the case YAML.
-6. Pass `CONFIG_PATH` into shared loading/execution logic so the file can run directly from the repository root and be stepped through in a Python debugger without constructed CLI arguments.
+   It must expose a no-argument `main()` callable and may retain an `if __name__ == "__main__"` compatibility block.
+5. Define a visible module-level `CONFIG_PATH` constant in the version-specific module pointing to the case YAML.
+6. Maintain a repository-root `run.py` as the sole primary debugger entrypoint. It must define a visible macro variable such as `VERSION = "v1"`, set to the latest implemented version, and provide `build_main(version: str) -> Callable[[], object]`. The builder imports the matching `runs.run_<version>` module or matching `runs.run_<version>_*` case module and returns its `main()` callable.
+7. Run and debug from the repository root with `python run.py`; do not use a `runs/...` path for the final debug execution.
 
-A run file should be equivalent to:
+A root `run.py` should be equivalent to:
 
 ```python
+from importlib import import_module
 from pathlib import Path
+from typing import Callable
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_PATH = REPO_ROOT / "config" / "v35" / "trial.yaml"
+REPO_ROOT = Path(__file__).resolve().parent
+VERSION = "v1"
+
+def build_main(version: str) -> Callable[[], object]:
+    module = import_module(f"runs.run_{version}")
+    return module.main
 
 if __name__ == "__main__":
-    run_experiment(CONFIG_PATH)
+    build_main(VERSION)()
 ```
 
-Keep model, data, training, evaluation, and plotting logic out of the run file. Validate that every YAML file loads, contains required fields, and is actually the config used by its run.
+Keep model, data, training, evaluation, and plotting logic out of both runner layers. Validate that every YAML file loads, contains required fields, and is actually the config used by the versioned `main()`.
 
 ## Versioned Result Bundle
 
@@ -173,20 +192,20 @@ __board__/reports/<version>/
 6. Implement the smallest reuse-first design; consolidate duplicated or fragmented logic when required.
 7. Create one YAML config and thin debug entrypoint per planned experiment case.
 8. Prefer `uv` for Python package management when available, but allow `pip install` when necessary. Record installs.
-9. Run config-loading checks and the relevant unit tests. Capture the exact commands, pass/fail/skip counts, and useful terminal output for the report.
-10. Run planned experiments through their debug entrypoints so the tested path matches the documented path.
+9. Run the tests and checks required by the selected plan, plus any explicitly requested checks. Skip unrelated extra verification. Capture exact commands and output for checks that ran.
+10. Run planned experiments through the repository-root debugger entrypoint (`python run.py`) so the tested path matches the documented debugger path.
 11. Export figures, plot-data CSVs, and table CSVs into the versioned result bundle.
 12. Create or refresh root `structure.md` from the final source.
 13. Write `__board__/reports/<version>/<same-filename-as-plan>.md`.
-14. Verify the report's first line, config/run mappings, artifact links, CSV headers, test output, and `structure.md` signatures.
+14. Verify the report's first line, config/run mappings, artifact links, CSV headers, any planned or requested verification output, and `structure.md` signatures.
 15. Update `__board__/STATUS.md`.
 
 ## Report Structure
 
-The absolute first line must name the primary debugger entrypoint and its direct command. Use exactly this form:
+The absolute first line must name the primary debugger entrypoint and its direct command. The primary entrypoint is always the repository-root `run.py`. Use exactly this form:
 
 ```markdown
-Debug entrypoint: `runs/run_v35_trial.py` | Command: `python runs/run_v35_trial.py`
+Debug entrypoint: `run.py` | Command: `python run.py`
 
 # Report: [report name]
 
@@ -198,14 +217,16 @@ Debug entrypoint: `runs/run_v35_trial.py` | Command: `python runs/run_v35_trial.
 
 [Write one concise opening paragraph stating the experiment's core idea, how it was implemented and run, a rudimentary pseudo-example such as `load(CONFIG_PATH) -> run_experiment(config) -> evaluate(result)`, and the headline result.]
 
-## Unit Test Results
+## Verification Results
 
-**Command**: `[exact unit-test command]`
+Include this section when tests or checks were required by the selected plan or explicitly requested. If neither applies, write `Verification: not required by plan or request` under Validation, Issues & Caveats instead.
 
-**Result**: [passed/failed with exact passed, failed, skipped, and error counts]
+**Command**: `[exact requested verification command(s)]`
+
+**Result**: [exact result and counts when applicable]
 
 ```text
-[Include the actual concise terminal output or a faithful excerpt showing collection and final results. Include failure details needed to diagnose problems; do not replace output with a pass/fail claim.]
+[Include actual concise output for the requested checks. Do not replace output with an unsupported pass/fail claim.]
 ```
 
 ## Main Findings
@@ -228,7 +249,7 @@ Debug entrypoint: `runs/run_v35_trial.py` | Command: `python runs/run_v35_trial.
 
 | Case | Config | Debug entrypoint | Command |
 |------|--------|------------------|---------|
-| `[case]` | `../../../config/<version>/<case>.yaml` | `../../../runs/run_<version-id>_<case>.py` | `python runs/run_<version-id>_<case>.py` |
+| `[case]` | `../../../config/<version>/<case>.yaml` | `../../../run.py` | `python run.py` |
 
 [State repository-root working directory, environment, seeds, data scope, and key debugger checkpoints. List every case, even when only one is discussed above.]
 
@@ -242,7 +263,7 @@ Debug entrypoint: `runs/run_v35_trial.py` | Command: `python runs/run_v35_trial.
 
 ## Validation, Issues & Caveats
 
-[Report config checks, experiment checks, limitations, failed runs, technical debt, and unresolved issues with exact commands and numbers.]
+[Report the primary debug-run result, planned/requested verification status, limitations, failed runs, technical debt, and unresolved issues with exact commands and numbers.]
 
 ## Suggested Next Steps
 
