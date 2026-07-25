@@ -1,6 +1,6 @@
 ---
-description: AutoResearch: write a shared-board technical note
-argument-hint: <topic>
+description: "AutoResearch: write a shared-board technical note"
+argument-hint: "<topic>"
 ---
 
 Generate a technical note about: "$ARGUMENTS"
@@ -10,9 +10,38 @@ Generate a technical note about: "$ARGUMENTS"
 Before writing:
 
 1. Treat the current working directory as the project root unless the user gives a different root.
-2. Ensure `__board__/notes/`, `__board__/reports/`, `__board__/plans/`, and `__board__/refs/` exist.
-3. Ensure `__board__/STATUS.md` exists. If missing, create the default status file from `/ar_plan`.
-4. All notes must stay under `__board__/notes/`.
+2. Do not create `__board__/` during ordinary session startup. Create it only when this command is invoked.
+3. Ensure only `__board__/` and `__board__/notes/` exist, creating them if missing.
+4. If `__board__/STATUS.md` is missing, create it from the default template below.
+5. Do not create `plans/`, `reports/`, or `refs/` merely for completeness; read them only if they exist.
+6. Keep all notes under `__board__/notes/`.
+
+```markdown
+# Project Status
+
+**Last Updated**: YYYY-MM-DD (initialized)
+**Current Phase**: Setup
+
+## Recently Completed
+
+_No completed iterations yet._
+
+## In Progress
+
+_None._
+
+## Next Steps
+
+- [ ] Create the first AutoResearch plan.
+
+## Known Issues
+
+_None yet._
+
+## Notes
+
+_Shared observations for Claude, Codex, and the human._
+```
 
 ## Before Writing
 
@@ -20,7 +49,7 @@ Before writing:
 2. Scan `__board__/notes/` to determine the next note number:
    - Find the highest `NN.*.md` and use `NN+1`.
    - If no notes exist, start with `01`.
-3. Read relevant reports, plans, notes, and refs from `__board__/`.
+3. Read relevant reports, plans, notes, and refs from `__board__/` when those paths exist.
 4. Inspect relevant source/config files if the note makes claims about code.
 
 ## Note Output

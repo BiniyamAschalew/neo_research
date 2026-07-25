@@ -1,6 +1,6 @@
 ---
-description: AutoResearch: optionally send Telegram notification
-argument-hint: [optional focus or extra note]
+description: "AutoResearch: optionally send Telegram notification"
+argument-hint: "[optional focus or extra note]"
 ---
 
 Send a concise completion notification if Telegram credentials are configured.
