@@ -1,0 +1,4 @@
+interface:
+  display_name: "AR Note"
+  short_description: "Capture focused and loop-lineage notes"
+  default_prompt: "Use $ar-note to record a focused observation or final loop lineage."

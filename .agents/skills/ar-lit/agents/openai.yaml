@@ -1,0 +1,4 @@
+interface:
+  display_name: "AR Literature"
+  short_description: "Map literature and choose a faithful baseline"
+  default_prompt: "Use $ar-lit to map prior work and select a small faithful reproduction target."

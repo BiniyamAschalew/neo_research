@@ -1,0 +1,4 @@
+interface:
+  display_name: "AR Plan"
+  short_description: "Plan a lean implementation or experiment"
+  default_prompt: "Use $ar-plan to design the next lean implementation or experiment."
