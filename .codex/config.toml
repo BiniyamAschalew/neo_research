@@ -1,3 +1,3 @@
-# Project-local Codex behavior lives in ../AGENTS.md and ../.agents/skills/.
-# Model routing lives only in ../__board__/config.yaml after lazy bootstrap.
-
+# Project-local Codex settings belong here.
+# Shared research state belongs under ../__board__/.
+# Reusable Codex workflows live in ../.agents/skills/.

@@ -1,4 +1,0 @@
-interface:
-  display_name: "AR Loop"
-  short_description: "Run evidence-driven research iterations"
-  default_prompt: "Use $ar-loop to reproduce prior work and iteratively improve a research idea."
