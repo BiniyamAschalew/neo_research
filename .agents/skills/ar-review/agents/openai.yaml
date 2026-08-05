@@ -1,4 +1,0 @@
-interface:
-  display_name: "AR Review"
-  short_description: "Independently review research artifacts"
-  default_prompt: "Use $ar-review to critique a plan, implementation, result, or claim."

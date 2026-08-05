@@ -1,4 +1,0 @@
-interface:
-  display_name: "AR Compact"
-  short_description: "Compact code through behavior-preserving reuse"
-  default_prompt: "Use $ar-compact to reduce duplication and reorganize the codebase without changing behavior."

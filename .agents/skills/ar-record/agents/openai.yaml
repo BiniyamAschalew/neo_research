@@ -1,4 +1,0 @@
-interface:
-  display_name: "AR Record"
-  short_description: "Update durable research memory and state"
-  default_prompt: "Use $ar-record to fold a reviewed experiment into research memory."
