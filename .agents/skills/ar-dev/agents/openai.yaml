@@ -1,0 +1,4 @@
+interface:
+  display_name: "AR Dev"
+  short_description: "Implement and run an experiment plan"
+  default_prompt: "Use $ar-dev to execute the selected experiment plan."
