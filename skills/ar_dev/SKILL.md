@@ -100,6 +100,17 @@ Before adding code:
 5. Keep experiment entrypoints thin and move reusable behavior into cohesive modules.
 6. Prefer small explicit functions, clear inputs and outputs, repository-consistent typing, deterministic seeds, and errors that preserve debugging context.
 7. Organize by responsibility in folders; avoid root clutter, oversized modules, catch-all utility files, hidden global state, and unrelated refactors.
+8. Write for human readability. A researcher should be able to read, step through and edit the code easily, so keep it concise and direct.
+
+## Readability and Safety Checks
+
+Too many defensive checks and safety wrappers make code hard to read and work with. Add a check only when it is necessary:
+
+- **Keep a check when** it guards real external input (user configs, files, downloaded data, network or hardware availability), or a scientific invariant whose silent violation would corrupt results (split leakage, checkpoint or source identity, label alignment, shape or count contracts at a data boundary).
+- **Drop a check when** it guards values the code itself just created, repeats one already made upstream, or covers a case that cannot occur. Do not add `if x is None` branches for arguments that are never `None`. Let ordinary Python errors (`KeyError`, shape mismatch) surface for programmer mistakes instead of pre-checking them.
+- **Do not wrap code** in try/except that only re-raises, logs and continues, or swallows errors. Do not add wrapper functions or classes whose only purpose is safety or indirection.
+- **Prefer plain code**: direct indexing over defensive `.get()` chains with fallbacks, and one fail-fast check at the boundary over repeated checks deep inside the code. Do not add optional parameters or fallback paths the plan does not need.
+- When a check is necessary, make it one short line with an error message that names the problem.
 
 Do not treat `structure.md` as a substitute for inspecting code. If the plan's architecture conflicts with source reality, choose the most concise safe design and document the decision.
 
@@ -149,7 +160,8 @@ For every distinct experiment case:
    - One case: `runs/run_<version-id>.py`
    - Multiple cases: `runs/run_<version-id>_<case>.py`
    It must expose a no-argument `main()` callable and may retain an `if __name__ == "__main__"` compatibility block.
-5. Define a visible module-level `CONFIG_PATH` constant in the version-specific module, defaulting to the case's `tiny.yaml`. Normal debugging requires only editing this variable; select `full.yaml` explicitly before scientific acquisition. No argparse flags are required.
+5. Define a visible module-level `CONFIG_PATH` constant in the version-specific module, defaulting to the case's `tiny.yaml`. Normal debugging requires only editing this variable; select `full.yaml` explicitly before scientific acquisition.
+   **No argparse rule:** The main run files (root `run.py` and every `runs/run_<version>[_<case>].py`) must not use argparse or any other command-line parsing at all. Define the run settings as visible module-level variables inside the Python file — only the config path/name and similar general variables (for example `VERSION` and `CONFIG_PATH`), never experiment parameters, which belong in YAML. To run a different experiment, open the file and edit those variables. Reason: argparse is inconvenient with a Python debugger, which should launch `run.py` with no arguments. If an existing main run file you touch still parses arguments, flag it in the report.
 6. Maintain a repository-root `run.py` as the sole primary debugger entrypoint. It must define a visible macro variable such as `VERSION = "v1"`, set to the latest implemented version, and provide `build_main(version: str) -> Callable[[], object]`. The builder imports the matching `runs.run_<version>` module or matching `runs.run_<version>_*` case module and returns its `main()` callable.
 7. Run and debug from the repository root with `python run.py`; do not use a `runs/...` path for the final debug execution.
 
@@ -211,7 +223,7 @@ For curated Python bundles, run this skill's `scripts/check_report_bundle.py` ag
 3. Read and verify `structure.md`, or inventory the source directly if this is the first development run.
 4. Inspect all source, tests, utilities, configs, and entrypoints relevant to the plan.
 5. Resolve the version, config directory, run filenames, and result-bundle path.
-6. Implement the smallest reuse-first design; consolidate duplicated or fragmented logic when required.
+6. Implement the smallest reuse-first design; consolidate duplicated or fragmented logic when required. Follow **Readability and Safety Checks**: concise, readable code with safety checks only where necessary.
 7. Create the planned full/tiny YAML pair and shared defaults, real-data fixture/manifest, and one thin debug entrypoint per experiment case.
 8. Prefer `uv` for Python package management when available, but allow `pip install` when necessary. Record installs.
 9. Run the tests and checks required by the selected plan, plus any explicitly requested checks. Skip unrelated extra verification. Capture exact commands and output for checks that ran.

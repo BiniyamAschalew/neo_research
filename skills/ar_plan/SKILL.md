@@ -19,7 +19,7 @@ Before writing:
 
 1. Treat the current working directory as the project root unless the user gives a different root.
 2. Do not create `__board__/` during ordinary session startup. Create it only when this skill is invoked.
-3. Ensure only `__board__/` and `__board__/plans/` exist, creating them if missing.
+3. Ensure only `__board__/` and `__board__/plans/` exist, creating them if missing. The plan's own preview folder `__board__/plans/v{N}.{slug}/` is created only when the plan includes expected-figure previews.
 4. If `__board__/STATUS.md` is missing, create the default status file below.
 5. Do not create `reports/`, `notes/`, or `refs/` merely for completeness; read them only if they exist.
 6. Never overwrite an existing board file.
@@ -92,10 +92,23 @@ For every distinct experiment case, plan:
 - A shared scientific configuration with `config/<version>/<case>/full.yaml` and `tiny.yaml`; keep experiment parameters in YAML rather than hard-coding them in Python. Define resolved profile differences and preserve full scientific settings. Tiny uses the same production pipeline and actual architecture/weights, with smaller eligible inputs and bounded work.
 - One thin version-specific implementation entrypoint under `runs/`. Use `runs/run_<version>.py` for a single case or `runs/run_<version>_<case>.py` for multiple cases. Normalize dots and hyphens in filenames to underscores. Each module must expose a no-argument `main()` callable and a module-level `CONFIG_PATH`.
 - A root-level `run.py` debugger entrypoint with a visible macro such as `VERSION = "v1"`, set to the latest version, and a builder utility `build_main(version: str)` that imports the corresponding `runs.run_<version>` or `runs.run_<version>_*` module and returns its `main()` callable.
-- A visible `CONFIG_PATH` in the version-specific module, defaulting to its tiny profile. Select full explicitly through that variable; do not create a separate runner or algorithm for each profile. No argparse flags are needed for normal debugging.
+- A visible `CONFIG_PATH` in the version-specific module, defaulting to its tiny profile. Select full explicitly through that variable; do not create a separate runner or algorithm for each profile.
+- **No argparse rule:** The main run files (root `run.py` and every `runs/run_<version>[_<case>].py`) must not use argparse or any other command-line parsing at all. Define the run settings as visible module-level variables inside the Python file — only the config path/name and similar general variables (for example `VERSION` and `CONFIG_PATH`), never experiment parameters, which belong in YAML. To run a different experiment, open the file and edit those variables. Reason: argparse is inconvenient with a Python debugger, which should launch `run.py` with no arguments.
 - A direct root command: `python run.py`. The final debug run must be executed from the repository root, never via a `runs/...` path.
 
 Do not put model, dataset, or experiment implementation in either runner file. Keep `run.py` as the version selector/import builder and the version-specific module as a readable config-driven entrypoint. Use portable repository-relative paths and never put secrets or machine-specific absolute paths in configs.
+
+## Expected-Figure Previews
+
+When the planned work will publish plots (for example a training-loss curve, metric-by-condition bars, a calibration plot or a heatmap), the plan must show the human what each final plot will look like before `$ar_dev` runs, so they can understand the planned evidence and request edits early.
+
+- List every main figure the final report is expected to contain, derived from the planned comparisons and decision rules. Usually 1-4 previews; skip minor supplements.
+- For each, render a preview with **synthetic data** that shows the ideal or hypothesized outcome. Match the planned final plot exactly in chart type, panels, axes and units, scales, series/conditions and their labels, colors, uncertainty encoding (bands, error bars, seeds), reference lines and decision thresholds. Use plausible magnitudes informed by prior reports when available.
+- Mark every preview unambiguously as synthetic: put `SYNTHETIC PREVIEW` in the figure title or a corner annotation, and say so in the caption. Never present preview values as results or reuse them anywhere in the detailed plan as expected numbers.
+- Save images as `__board__/plans/v{N}.{slug}/figures/<descriptive-plot-name>.png`, using the filename the final report figure is planned to have. Save the small, seeded generator as `__board__/plans/v{N}.{slug}/preview_plots.py`; it must use only matplotlib/numpy (or the project's existing plotting library), read no project data, and run from any directory. Run it and visually inspect each image before finishing the plan.
+- Embed the previews in the At a Glance part, directly after the summary paragraphs/table and immediately before the `======` separator, each with an italic caption `*Preview N. [What the final plot will show, what comparison to read and what the synthetic pattern illustrates]. Synthetic data.*`.
+- In the detailed part, record these figures as the planned figure contract (name, backing table, encodings) under Test and Debug Validation or Files Expected to Change, so `$ar_dev` produces the same plots from real data unless the human edits them.
+- If the plan produces no plots (for example code-only work), write `_No figures planned._` in that position instead and create no preview folder.
 
 ## Planning Workflow
 
@@ -107,13 +120,14 @@ Do not put model, dataset, or experiment implementation in either runner file. K
 6. Design the smallest reusable implementation and identify any required consolidation.
 7. Define each full/tiny YAML pair, shared defaults, fixture manifest, device/weight prerequisites, debug entrypoint, scoped acceptance checks, and experiment command. Reuse existing fixtures with the same input contract.
 8. Specify result paths using the project artifact policy when present; otherwise read the [publication defaults](../references/artifact-policy.md). Default new report bundles to `__board__/reports/<plan-basename>/<plan-basename>.md`; preserve an established `<version>/` directory convention.
-9. Write `__board__/plans/v{N}.{slug}.md`.
+9. Generate the expected-figure previews, if any, and inspect them.
+10. Write `__board__/plans/v{N}.{slug}.md`.
 
 ## Two-Part Plan Structure
 
 After the title and metadata, write each plan in two parts:
 
-1. **At a Glance:** Aim for two short paragraphs in plain language for a human reading in a rush. Explain the question, why it matters, the proposed approach and comparison, and what the experiment will let us decide. Keep the important scope, success conditions and limitations visible. Put supporting setup facts in a compact table or simple diagram when that makes them easier to scan; leave exhaustive settings, file lists and implementation steps to the detailed part.
+1. **At a Glance:** Aim for two short paragraphs in plain language for a human reading in a rush. Explain the question, why it matters, the proposed approach and comparison, and what the experiment will let us decide. Keep the important scope, success conditions and limitations visible. Put supporting setup facts in a compact table or simple diagram when that makes them easier to scan; leave exhaustive settings, file lists and implementation steps to the detailed part. End this part with the expected-figure previews (see above), so they sit right after the summary and right before the separator.
 2. Put the exact separator `======` on its own line, with blank lines around it. Then retain the complete detailed plan structure below, starting with Objective. The overview supplements the detailed plan; it does not replace tasks, acceptance criteria, references or implementation guidance. Both parts must agree.
 
 ## Plan Template
@@ -139,6 +153,14 @@ After the title and metadata, write each plan in two parts:
 | Scope | [Data, models and main comparison] |
 | Success check | [Primary metric and acceptance criterion] |
 | Cost / limits | [Relevant resource budget and key scope boundary] |
+
+### Expected Figures (synthetic previews)
+
+![SYNTHETIC PREVIEW: descriptive alt text](v{N}.{slug}/figures/<descriptive-plot-name>.png)
+
+*Preview 1. [What the final plot will show, the comparison to read, and the outcome the synthetic pattern illustrates]. Synthetic data, not results.*
+
+[Repeat for each main figure, or write `_No figures planned._`]
 
 ======
 
@@ -226,7 +248,7 @@ After the title and metadata, write each plan in two parts:
 - Include output for tests/checks included in the plan or explicitly requested. If neither applies, record that verification was not required by the plan or request.
 - Require the final report's first line to name the primary debug entrypoint and command.
 - Keep each plan to one coherent iteration.
-- Do not implement code while using this skill.
-- Keep generated planning output under `__board__/plans/`.
+- Do not implement code while using this skill. The only exception is the plan-local `preview_plots.py` that renders synthetic expected-figure previews.
+- Keep generated planning output, including preview figures and their generator, under `__board__/plans/`.
 
 End with the plan path and next invocation. If the user already authorized downstream execution, continue under ar_dev without requesting the same approval again.
