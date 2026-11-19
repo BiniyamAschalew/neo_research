@@ -1,5 +1,7 @@
 # Shared AutoResearch workflows
 
+Quick reference for every skill and how to run it: [SKILLS.md](SKILLS.md).
+
 Edit workflow definitions under `skills/`. Project Codex skills link to those
 directories; Claude commands link to the thin adapters under `adapters/claude/`,
 which read the same definitions. `ar_plan`, `ar_dev` and `ar_metaplan` share
