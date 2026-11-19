@@ -12,6 +12,8 @@ Destructive commands are dry runs unless --yes is given.
 
 import argparse
 from datetime import date
+import importlib.machinery
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -26,8 +28,23 @@ SUMMARIES = "__board__/ideas"
 COLUMNS = ["slug", "status", "question", "branch", "base", "worktree", "tab", "pane", "created", "closed"]
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 REQUIRED = ["## Question", "## Approach", "## Main results", "## Why it failed", "## Don't retry unless"]
+AGENT_LINKS = {".claude", ".agents", ".codex", "AGENTS.md"}  # ar_init links, not results
 SKIP_ARCHIVE = {"__pycache__", ".pytest_cache", ".venv", ".ipynb_checkpoints", ".DS_Store"}
 ARCHIVE = Path(os.environ.get("AR_ARCHIVE", Path.home() / "ar_archive"))
+NEO_INIT = Path(__file__).resolve().parents[3] / "ar_init"
+
+
+def link_shared(tree):
+    """Give a new worktree the same shared agent links as the main checkout (ar_init)."""
+    if not NEO_INIT.exists():
+        return []
+    loader = importlib.machinery.SourceFileLoader("ar_init", str(NEO_INIT))
+    spec = importlib.util.spec_from_loader("ar_init", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    log = module.link_agents(tree)
+    module.git_exclude(tree, False, log)
+    return log
 
 SUMMARY_TEMPLATE = """# Idea: {slug}
 
@@ -137,6 +154,7 @@ def cmd_new(args):
                      f"\nWork only inside this worktree. When done, the mate or human runs `ar_tree close {args.slug} ...`.\n")
     git("add", "__board__/IDEA.md", cwd=tree)
     git("commit", "-q", "-m", f"idea: start {args.slug}", cwd=tree)
+    link_shared(tree)
     row = dict(slug=args.slug, status="active", question=args.question, branch=branch, base=f"{args.base}@{base_sha}",
                worktree=str(tree), tab="", pane="", created=date.today().isoformat(), closed="")
     if not args.no_herdr:
@@ -196,7 +214,8 @@ def summary_problems(path):
 def ignored_paths(tree):
     """Untracked, git-ignored files and folders (raw results) that would vanish with the worktree."""
     out = git("ls-files", "--others", "--ignored", "--exclude-standard", "--directory", cwd=tree)
-    return [p.rstrip("/") for p in out.splitlines() if p and not set(Path(p).parts) & SKIP_ARCHIVE]
+    return [p.rstrip("/") for p in out.splitlines() if p and not set(Path(p).parts) & SKIP_ARCHIVE
+            and Path(p).parts[0] not in AGENT_LINKS and not p.startswith("__board__/claude")]
 
 
 def archive_ignored(tree, dest, paths):

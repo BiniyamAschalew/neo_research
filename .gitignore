@@ -3,3 +3,4 @@ __board__/notes/local/
 **/.pytest_cache/
 secrets/*
 !secrets/*.example
+.claude/*.lock

@@ -22,6 +22,7 @@ Do not create `__board__/` during ordinary session startup. AutoResearch skills 
 At the beginning of a Codex task:
 
 1. Read `__board__/STATUS.md` if it exists.
+   Also read `__board__/PROJECT.md` (project specifics) and `~/.config/ar/host.md` (machine rules, such as GPU claims) when they exist; they override shared defaults. If `host.md` is missing on a GPU server, check `hosts/` in the neo_research checkout for that machine's rules before running GPU jobs.
 2. If executing a plan, read the relevant file in `__board__/plans/`.
 3. Scan recent files in `__board__/reports/` and `__board__/notes/` when they are relevant.
 4. Do not create `__board__/` during startup. Let the invoked AutoResearch skill create only the paths it needs, and never overwrite existing board files during bootstrap.
@@ -75,12 +76,3 @@ pip install <package>
 - Preserve existing project code style and conventions.
 - When a requirement is ambiguous during `$ar_dev`, make a reasonable decision, proceed, and document the decision in the report.
 
-## GPU Jobs: Notify persist.py
-
-`/home1/irteam/data-vol1/persist.py` fills idle GPUs with synthetic load (~90% memory). Any GPU job (training, eval, inference, benchmarks) MUST notify it before touching the GPU, or it may OOM:
-
-- Shell: `python /home1/irteam/data-vol1/persist_notify.py run -- <your command>`
-- Python: `sys.path.insert(0, "/home1/irteam/data-vol1"); from persist_notify import gpu_claim` then `with gpu_claim("<exp-name>"): ...`
-- Manual: `persist_notify.py start <tag>` before, `persist_notify.py done <tag>` after.
-
-persist pauses within ~2s on a claim and resumes when the claim is released. Unannounced jobs are only detected by an nvidia-smi check every 30s.

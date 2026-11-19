@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""Set up a research project to use this neo_research checkout.
+
+    ./ar_init <project-path>            # set up (safe: never deletes or overwrites your files)
+    ./ar_init <project-path> --dry-run  # show what would change
+    ./ar_init <project-path> --replace  # move conflicting real files to __board__/notes/local/ar_init-backup/ first
+
+Creates absolute links to the shared agent files, a project-local __board__/, and keeps
+Claude's per-project settings inside that board:
+
+    .agents                    -> <neo>/.agents                 shared skills (Codex)
+    .codex                     -> <neo>/.codex                  shared Codex config
+    AGENTS.md                  -> <neo>/AGENTS.md               shared instructions
+    .claude/                      real folder (per project)
+      commands                 -> <neo>/.claude/commands        shared slash commands
+      CLAUDE.md                -> <neo>/.claude/CLAUDE.md       shared instructions
+      settings.local.json      -> ../__board__/claude/settings.local.json   this project's own state
+    __board__/PROJECT.md          project specifics (env, data, conventions); fill in once
+
+Links are machine-specific, so they are ignored through .git/info/exclude (shared by all
+worktrees, never committed). On a host with a known GPU helper, ~/.config/ar/host.md is
+installed from hosts/ when missing.
+"""
+
+import argparse
+from datetime import datetime
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+NEO = Path(__file__).resolve().parent
+SHARED = {".agents": ".agents", ".codex": ".codex", "AGENTS.md": "AGENTS.md",
+          ".claude/commands": ".claude/commands", ".claude/CLAUDE.md": ".claude/CLAUDE.md"}
+LOCAL_SETTINGS = (".claude/settings.local.json", "__board__/claude/settings.local.json")
+EXCLUDE = [".agents", ".codex", "AGENTS.md", ".claude/commands", ".claude/CLAUDE.md",
+           ".claude/settings.local.json", ".claude/*.lock", "__board__/claude/", "__board__/notes/local/"]
+HOST_FILE = Path(os.environ.get("AR_HOST_FILE", Path.home() / ".config/ar/host.md"))
+HOSTS = {"irteam-gpu.md": Path("/home1/irteam/data-vol1/persist_notify.py")}
+PROJECT_TEMPLATE = """# Project: {name}
+
+Project-specific facts every agent reads at startup (shared rules live in neo_research).
+
+**Question / goal**: [one line]
+**Conda env**: [name]
+**Entrypoint**: `python run.py`
+**Data**: [paths and how to obtain them; never commit data]
+**Conventions that override shared defaults**: [report layout, configs, seeds, anything else]
+"""
+
+
+def is_link_to(path, target):
+    return path.is_symlink() and Path(os.readlink(path)) == target
+
+
+def place_link(path, target, replace, backup, dry_run, log):
+    """Create path -> target. Existing links are re-pointed; real files are only moved with --replace."""
+    if is_link_to(path, target):
+        log.append(f"ok       {path.name:<22} -> {target}")
+        return
+    if path.is_symlink():
+        log.append(f"relink   {path.name:<22} -> {target}   (was -> {os.readlink(path)})")
+        if not dry_run:
+            path.unlink()
+    elif path.exists():
+        if not replace:
+            log.append(f"CONFLICT {path}: real {'folder' if path.is_dir() else 'file'} exists; rerun with --replace to move it to the backup")
+            return
+        log.append(f"backup   {path} -> {backup / path.name}")
+        if not dry_run:
+            backup.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(path), str(backup / path.name))
+    else:
+        log.append(f"link     {path.name:<22} -> {target}")
+    if not dry_run:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.symlink_to(target, target_is_directory=target.is_dir())
+
+
+def git_exclude(project, dry_run, log):
+    result = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=project, text=True, capture_output=True)
+    if result.returncode:
+        log.append("note     not a git repository; no ignore rules written")
+        return
+    exclude = (project / result.stdout.strip()).resolve() / "info/exclude"
+    current = exclude.read_text().splitlines() if exclude.exists() else []
+    missing = [e for e in EXCLUDE if e not in current]
+    if missing:
+        log.append(f"ignore   {', '.join(missing)} in {exclude}")
+        if not dry_run:
+            exclude.parent.mkdir(parents=True, exist_ok=True)
+            with exclude.open("a") as handle:
+                handle.write("\n# neo_research ar_init (machine-specific links)\n" + "\n".join(missing) + "\n")
+    tracked = subprocess.run(["git", "ls-files", "--", *SHARED], cwd=project, text=True, capture_output=True).stdout.split()
+    if tracked:
+        log.append(f"note     {len(tracked)} old tracked agent files (e.g. {tracked[0]}); untrack them once with: "
+                   f"git rm -r --cached {' '.join(sorted({t.split('/')[0] if t.startswith(('.agents', '.codex')) else t for t in tracked}))}")
+
+
+def install_host(dry_run, log):
+    if HOST_FILE.exists():
+        log.append(f"ok       host rules {HOST_FILE}")
+        return
+    for name, marker in HOSTS.items():
+        if marker.exists():
+            log.append(f"host     {HOST_FILE} <- hosts/{name}")
+            if not dry_run:
+                HOST_FILE.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(NEO / "hosts" / name, HOST_FILE)
+            return
+    log.append(f"note     no machine rules; add {HOST_FILE} if this host needs any (see hosts/)")
+
+
+def link_agents(project, replace=False, dry_run=False, log=None):
+    """Shared links + local Claude settings only. Also used by ar_tree for new worktrees."""
+    log = [] if log is None else log
+    project = Path(project).resolve()
+    backup = project / "__board__/notes/local/ar_init-backup" / datetime.now().strftime("%Y%m%dT%H%M%S")
+    claude = project / ".claude"
+    if claude.is_symlink():  # an old whole-folder link would put this project's state into neo_research
+        log.append(f"unlink   .claude (was -> {os.readlink(claude)}); now a real per-project folder")
+        if not dry_run:
+            claude.unlink()
+    if not dry_run:
+        claude.mkdir(exist_ok=True)
+    for relative, shared in SHARED.items():
+        place_link(project / relative, NEO / shared, replace, backup, dry_run, log)
+    link, store = (project / p for p in LOCAL_SETTINGS)
+    if not dry_run:
+        store.parent.mkdir(parents=True, exist_ok=True)
+        if link.exists() and not link.is_symlink() and not store.exists():
+            shutil.move(str(link), str(store))
+            log.append(f"move     .claude/settings.local.json -> {store.relative_to(project)}")
+        if not store.exists():
+            store.write_text("{}\n")
+    place_link(link, Path("../__board__/claude/settings.local.json"), replace, backup, dry_run, log)
+    return log
+
+
+def init(project, replace=False, dry_run=False):
+    project = Path(project).expanduser().resolve()
+    if not project.is_dir():
+        raise SystemExit(f"Not a directory: {project}")
+    if project == NEO:
+        raise SystemExit("Run ar_init on a research project, not on neo_research itself.")
+    log = [f"project  {project}", f"shared   {NEO}"]
+    board = project / "__board__"
+    if not board.exists():
+        log.append("create   __board__/")
+    link_agents(project, replace, dry_run, log)
+    if not (board / "PROJECT.md").exists():
+        log.append("create   __board__/PROJECT.md (fill in once)")
+        if not dry_run:
+            board.mkdir(exist_ok=True)
+            (board / "PROJECT.md").write_text(PROJECT_TEMPLATE.format(name=project.name))
+    git_exclude(project, dry_run, log)
+    install_host(dry_run, log)
+    conflicts = [l for l in log if l.startswith("CONFLICT")]
+    log.append("dry run; nothing changed" if dry_run else ("done with conflicts (nothing was overwritten)" if conflicts else "done"))
+    return log, conflicts
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("project", type=Path)
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--replace", action="store_true", help="Move conflicting real files/folders to the backup, then link")
+    args = parser.parse_args()
+    log, conflicts = init(args.project, args.replace, args.dry_run)
+    print("\n".join(log))
+    return 1 if conflicts else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -13,7 +13,19 @@ supporting references; the artifact helper lives with `ar_dev`.
 - Plans start with a 20-line Experiment Card (Flow, Compare, Decide, Edit me) that the human edits before `ar_dev`; reports start with the same card as Planned vs Actual.
 - `ar_notify`: Slack text notifications. `notify_run.py -- python run.py` posts automatically when any run ends (status, duration, report card or output tail); `slack_notify.py --report` sends a report's card with text tables. Copy `secrets/slack.env.example` to `secrets/slack.env` (gitignored) and paste an Incoming Webhook URL.
 
-## Install or refresh project links
+## Set up a project: `ar_init`
+
+From this checkout:
+
+```bash
+./ar_init ../your-project            # safe: links, __board__/, PROJECT.md; never overwrites real files
+./ar_init ../your-project --dry-run  # preview
+./ar_init ../your-project --replace  # move conflicting real files to __board__/notes/local/ar_init-backup/ first
+```
+
+It links `.agents`, `.codex`, `AGENTS.md`, `.claude/commands` and `.claude/CLAUDE.md` to this checkout (absolute links, ignored through `.git/info/exclude`), keeps `.claude/` itself a real per-project folder, links `.claude/settings.local.json` to `__board__/claude/` so Claude's per-project state stays with the project, and creates `__board__/PROJECT.md` for project specifics. Machine rules (for example the GPU persist.py claim) live in `~/.config/ar/host.md`; `ar_init` installs the matching file from `hosts/` when it detects the machine. New skills added here appear in every project immediately; `ar_tree new` repeats the links in each idea worktree. Rerunning is idempotent and re-points stale links.
+
+## Install or refresh project links (legacy per-skill installer)
 
 Keep this checkout alongside your projects on each machine. From this checkout:
 
