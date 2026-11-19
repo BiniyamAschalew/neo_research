@@ -38,11 +38,11 @@ Use the AutoResearch skill names:
 | `$ar_tree new\|close <slug>` | `$ar_tree new head-swap` | One worktree per idea; only a summary returns to main |
 | `$ar_mate [request]` | `$ar_mate status` | First mate coordinating idea worktrees in Herdr |
 | `$ar_goal [goal.yaml]` | `$ar_goal` | Overnight one-change-at-a-time improvement loop |
-| `$ar_notify [report]` | `$ar_notify __board__/reports/v3/v3.md` | Slack summary with 1-3 main figures |
+| `$ar_notify [report]` | `$ar_notify __board__/reports/v3/v3.md` | Slack text summary of a finished run |
 
 Claude uses matching slash commands instead: `/ar_plan`, `/ar_dev`, `/ar_note`, `/ar_tree`, `/ar_mate`, `/ar_goal` and `/ar_notify`.
 
-When an experiment run ends, send its Slack summary with `$ar_notify` (keys: `secrets/slack.env` in the neo_research checkout; skipped when absent).
+Launch experiment runs through `python .agents/skills/ar_notify/scripts/notify_run.py -- <command>` so every completion posts to Slack (webhook in `secrets/slack.env` of the neo_research checkout; skipped when absent).
 
 ## Python Environment
 

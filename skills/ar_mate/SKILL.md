@@ -32,5 +32,5 @@ You are the single agent the human talks to about this project. Idea agents do t
 
 - Never edit code inside idea worktrees; that is the idea agent's job.
 - Report results with numbers and paths, not adjectives. Separate tiny/debug runs from scientific results.
-- When an idea's run finishes, make sure an `/ar_notify` Slack summary went out; send it yourself if the idea agent did not.
+- Launch runs through `notify_run.py` so completion always reaches Slack; if a run was started without it, send `/ar_notify` yourself when it ends.
 - Keep your own state on disk (`__board__/ideas.md`, worktree boards); a restarted mate rebuilds its picture from `mate_status.py`.

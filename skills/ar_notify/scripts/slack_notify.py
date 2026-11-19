@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Send a concise run summary (text + up to 3 figures) to Slack. Never fails a run.
+"""Send a concise text summary to Slack through an Incoming Webhook. Never fails a run.
 
-Keys live in <neo_research>/secrets/slack.env (gitignored) or the file named by
-AR_SLACK_ENV. A webhook can post text only; figure upload needs a bot token.
+The webhook URL lives in <neo_research>/secrets/slack.env (gitignored) or the file
+named by AR_SLACK_ENV. Markdown tables are sent as aligned monospace text tables.
 
     python slack_notify.py --report __board__/reports/v3.x/v3.x.md
-    python slack_notify.py --title "E12 done" --text "AUC +0.01" --figure a.png
+    python slack_notify.py --title "E12 done" --text "AUC +0.01"
 """
 
 import argparse
@@ -14,118 +14,99 @@ import os
 from pathlib import Path
 import re
 import sys
-import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[3]
 KEY_FILE = Path(os.environ.get("AR_SLACK_ENV", ROOT / "secrets/slack.env"))
-MAX_TEXT = 2500
-MAX_FIGURES = 3
-IMAGE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)")
+MAX_TEXT = 3500
+IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)\s*")
 
 
 def load_keys(path=KEY_FILE):
     keys = {}
-    if path.exists():
-        for line in path.read_text().splitlines():
+    if Path(path).exists():
+        for line in Path(path).read_text().splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 name, value = line.split("=", 1)
                 keys[name.strip()] = value.strip().strip('"').strip("'")
-    for name in ("SLACK_WEBHOOK_URL", "SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID"):
-        keys[name] = os.environ.get(name) or keys.get(name, "")
+    keys["SLACK_WEBHOOK_URL"] = os.environ.get("SLACK_WEBHOOK_URL") or keys.get("SLACK_WEBHOOK_URL", "")
     return keys
 
 
+def text_table(lines):
+    """Markdown table rows -> aligned monospace table inside a code block."""
+    rows = [[c.strip().replace("**", "").replace("`", "") for c in l.strip().strip("|").split("|")]
+            for l in lines if not re.match(r"^\|?\s*:?-{2,}", l.strip().strip("|").strip())]
+    width = max(len(r) for r in rows)
+    rows = [r + [""] * (width - len(r)) for r in rows]
+    sizes = [min(max(len(r[i]) for r in rows), 48) for i in range(width)]
+    out = ["  ".join(cell[:48].ljust(sizes[i]) for i, cell in enumerate(r)).rstrip() for r in rows]
+    if len(out) > 1:
+        out.insert(1, "  ".join("-" * s for s in sizes))
+    return "```\n" + "\n".join(out) + "\n```"
+
+
+def to_slack(markdown):
+    """Markdown -> Slack mrkdwn: text tables, bold headings, no images."""
+    out, table = [], []
+    for line in IMAGE.sub("", markdown).splitlines():
+        if line.strip().startswith("|"):
+            table.append(line)
+            continue
+        if table:
+            out.append(text_table(table))
+            table = []
+        heading = re.match(r"^#{1,6}\s+(.*)", line)
+        line = f"*{heading.group(1)}*" if heading else re.sub(r"\*\*(.+?)\*\*", r"*\1*", line)
+        out.append(line)
+    if table:
+        out.append(text_table(table))
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+
+
 def from_report(report):
-    """Title, top section (card / At a Glance, before ======) and its first figures."""
+    """Title and top section (Experiment Card / At a Glance, before ======) of a report."""
     report = Path(report)
-    lines = report.read_text().splitlines()
-    title = next((l[2:].strip() for l in lines if l.startswith("# ")), report.stem)
-    body = "\n".join(lines)
+    body = report.read_text()
+    title = next((l[2:].strip() for l in body.splitlines() if l.startswith("# ")), report.stem)
     top = body.split("\n======", 1)[0]
     start = re.search(r"^## (Experiment Card|At a Glance).*$", top, re.M)
     section = top[start.start():] if start else top
-    figures = IMAGE.findall(section) or IMAGE.findall(body)
-    paths = [(report.parent / f).resolve() for f in figures]
-    paths = [p for p in paths if p.suffix.lower() in {".png", ".jpg", ".jpeg"} and p.exists()]
-    text = IMAGE.sub("", section).strip()
-    text = f"{text}\n\nReport: `{report}`"
-    return title, text, paths[:MAX_FIGURES]
+    return title, to_slack(section) + f"\n\nReport: `{report}`"
 
 
-def slack_api(method, token, data=None, payload=None):
-    if payload is not None:
-        request = urllib.request.Request(
-            f"https://slack.com/api/{method}", json.dumps(payload).encode(),
-            {"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=utf-8"})
-    else:
-        request = urllib.request.Request(
-            f"https://slack.com/api/{method}", urllib.parse.urlencode(data).encode(),
-            {"Authorization": f"Bearer {token}"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        result = json.loads(response.read())
-    if not result.get("ok"):
-        raise RuntimeError(f"{method}: {result.get('error')}")
-    return result
-
-
-def send_with_token(token, channel, message, figures):
-    if not figures:
-        slack_api("chat.postMessage", token, payload={"channel": channel, "text": message})
-        return
-    uploaded = []
-    for path in figures:
-        data = path.read_bytes()
-        ticket = slack_api("files.getUploadURLExternal", token, {"filename": path.name, "length": len(data)})
-        request = urllib.request.Request(ticket["upload_url"], data, {"Content-Type": "application/octet-stream"})
-        urllib.request.urlopen(request, timeout=60).read()
-        uploaded.append({"id": ticket["file_id"], "title": path.stem})
-    slack_api("files.completeUploadExternal", token, payload={
-        "files": uploaded, "channel_id": channel, "initial_comment": message})
-
-
-def send_webhook(url, message, figures):
-    if figures:
-        message += "\n\nFigures (webhook cannot attach; add SLACK_BOT_TOKEN):\n" + "\n".join(f"• `{p}`" for p in figures)
-    request = urllib.request.Request(url, json.dumps({"text": message}).encode(), {"Content-Type": "application/json"})
-    urllib.request.urlopen(request, timeout=30).read()
-
-
-def notify(title, text, figures, keys=None, dry_run=False):
+def notify(title, text, keys=None, dry_run=False):
     keys = keys or load_keys()
-    message = f"*{title}*\n{text}"
+    message = f"*{title}*\n{text}".strip()
     if len(message) > MAX_TEXT:
-        message = message[:MAX_TEXT - 1] + "…"
-    figures = [Path(f) for f in figures][:MAX_FIGURES]
+        message = message[:MAX_TEXT - 4] + "\n…"
     if dry_run:
-        return {"status": "dry_run", "message": message, "figures": [str(f) for f in figures]}
+        return {"status": "dry_run", "message": message}
+    if not keys["SLACK_WEBHOOK_URL"]:
+        return {"status": "skipped", "reason": f"no SLACK_WEBHOOK_URL in {KEY_FILE}"}
     try:
-        if keys["SLACK_BOT_TOKEN"] and keys["SLACK_CHANNEL_ID"]:
-            send_with_token(keys["SLACK_BOT_TOKEN"], keys["SLACK_CHANNEL_ID"], message, figures)
-            return {"status": "sent", "via": "bot", "figures": len(figures)}
-        if keys["SLACK_WEBHOOK_URL"]:
-            send_webhook(keys["SLACK_WEBHOOK_URL"], message, figures)
-            return {"status": "sent", "via": "webhook", "figures": 0}
-        return {"status": "skipped", "reason": f"no Slack keys in {KEY_FILE}"}
+        request = urllib.request.Request(keys["SLACK_WEBHOOK_URL"], json.dumps({"text": message}).encode(),
+                                         {"Content-Type": "application/json"})
+        urllib.request.urlopen(request, timeout=30).read()
+        return {"status": "sent"}
     except Exception as error:  # a notification must never break the experiment
         return {"status": "failed", "reason": str(error)}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--report", type=Path, help="Report .md: uses its title, top card and first figures")
+    parser.add_argument("--report", type=Path, help="Report .md: sends its title and top card")
     parser.add_argument("--title")
     parser.add_argument("--text", default="")
-    parser.add_argument("--figure", action="append", default=[], type=Path)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    title, text, figures = args.title or "AutoResearch", args.text, args.figure
+    title, text = args.title or "AutoResearch", to_slack(args.text)
     if args.report:
-        title, text, found = from_report(args.report)
-        title, figures = args.title or title, args.figure or found
-        text = f"{args.text}\n{text}".strip()
-    print(json.dumps(notify(title, text, figures, dry_run=args.dry_run)))
+        title, card = from_report(args.report)
+        title = args.title or title
+        text = f"{text}\n{card}".strip()
+    print(json.dumps(notify(title, text, dry_run=args.dry_run)))
 
 
 if __name__ == "__main__":

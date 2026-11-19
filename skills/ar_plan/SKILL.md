@@ -205,7 +205,7 @@ After the title and metadata, write each plan in two parts:
 ## Test and Debug Validation
 
 - **Unit tests/checks**: `[exact command when included in the plan]`
-- **Primary debug command**: `python run.py`
+- **Primary debug command**: `python run.py` (agent-launched runs go through `notify_run.py -- python run.py` so completion posts to Slack)
 - **Config validation**: [YAML parsing, required fields, portable paths, resolved full/tiny differences and frozen full settings.]
 - **Portable tiny acceptance**: [Actual finite forward outputs and, where trainable, optimizer updates through production code with full data unavailable; fixture provenance/hashes/size; separate outputs; explicit device behavior and available-hardware status.]
 - **External prerequisites**: [Weight source/version/hash/cache, minimal dependencies and unsupported backend combinations. A runtime-only checkout must not depend on ignored helpers.]

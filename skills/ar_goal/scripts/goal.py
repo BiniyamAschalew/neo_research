@@ -146,9 +146,9 @@ Do not touch test-split code, data, evaluation or metric code. Do not commit.
 Finally write a one-line description of the change to {STATE}/change.txt."""
 
 
-def finish(cfg, best, rows, reason, started):
+def finish(cfg, best, rows, reason, started, final_test=True):
     test_value = None
-    if cfg["final_test"] and best.get("commit"):
+    if final_test and cfg["final_test"] and best.get("commit"):
         test_value = evaluate(cfg, "test", cfg["test_metric"] or cfg["metric"], "final-test")
     kept = [r for r in rows if r["decision"] == "kept"]
     figure = plot(rows, best)
@@ -169,10 +169,13 @@ def finish(cfg, best, rows, reason, started):
     paths = [str(p) for p in (summary, STATE / "log.tsv", STATE / "best.json", STATE / ".gitignore", figure) if p and Path(p).exists()]
     git("add", "-f", "--", *paths)
     git("commit", "-q", "-m", f"goal: summary ({reason})", check=False)
-    text = (f"Stopped: {reason}. Val {cfg['metric']} {best['baseline']:.4g} → {best['value']:.4g} "
-            f"({len(kept)}/{len(rows)} changes kept). Sealed test: {'n/a' if test_value is None else f'{test_value:.4g}'}.\n"
-            + "\n".join(f"• {r['change']} ({r['value']})" for r in kept[-3:]))
-    notify(f"ar_goal {Path.cwd().name}: {reason}", text, [figure] if figure else [])
+    table = ["| iter | val | decision | change |", "|---|---|---|---|",
+             *[f"| {r['iter']} | {r['value']} | {r['decision']} | {r['change'][:48]} |" for r in rows[-8:]]]
+    text = (f"Val {cfg['metric']}: baseline {best['baseline']:.4g} → best {best['value']:.4g} "
+            f"({len(kept)}/{len(rows)} changes kept, noise {best['delta']:.3g}).\n"
+            f"Sealed test: {'not run' if test_value is None else f'{test_value:.4g}'}\n" + "\n".join(table)
+            + f"\nSummary: `{summary}`")
+    notify(f"ar_goal {Path.cwd().name}: {reason}", text)
     print(summary.read_text())
 
 
@@ -200,13 +203,13 @@ def plot(rows, best):
     return path
 
 
-def notify(title, text, figures):
+def notify(title, text):
     if not NOTIFY.exists():
         return
     spec = importlib.util.spec_from_file_location("slack_notify", NOTIFY)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    print(json.dumps(module.notify(title, text, figures)))
+    print(json.dumps(module.notify(title, module.to_slack(text))))
 
 
 def main():
@@ -245,56 +248,64 @@ def main():
 
     rows = read_log()
     failures, reason = 0, "max_iters"
-    for iteration in range(len(rows) + 1, cfg["max_iters"] + 1):
-        if reached(best["value"], cfg["goal"], cfg["direction"]):
-            reason = "goal reached"
-            break
-        if (time.time() - started) / 3600 > cfg["max_hours"]:
-            reason = "time budget"
-            break
-        if failures >= cfg["max_consecutive_failures"]:
-            reason = f"{failures} consecutive failures"
-            break
-        (STATE / "change.txt").unlink(missing_ok=True)
-        command = " ".join(shlex.quote(c) for c in cfg["agent_cmd"]) + " " + shlex.quote(prompt(cfg, best, rows))
-        code, output = shell(command, timeout_min=cfg["agent_timeout_min"])
-        (STATE / "logs").mkdir(exist_ok=True)
-        (STATE / "logs" / f"agent-{iteration:03d}.log").write_text(output)
-        files = changed_files(ignore)
-        change = (STATE / "change.txt").read_text().strip() if (STATE / "change.txt").exists() else "(no description)"
-        row = {"iter": iteration, "time": datetime.now().strftime("%H:%M"), "files": ",".join(files), "change": change}
-        bad = outside(files, cfg["allowed"])
-        if code or not files or bad:
-            revert(files)
-            failures += 1
-            row.update(value="", decision="agent-error" if code else ("no-op" if not files else f"outside:{','.join(bad)}"))
-        else:
-            values = mean_eval(cfg, cfg["candidate_repeats"], f"iter-{iteration:03d}")
-            if values is None:
+    clean = True
+    try:
+        for iteration in range(len(rows) + 1, cfg["max_iters"] + 1):
+            if reached(best["value"], cfg["goal"], cfg["direction"]):
+                reason = "goal reached"
+                break
+            if (time.time() - started) / 3600 > cfg["max_hours"]:
+                reason = "time budget"
+                break
+            if failures >= cfg["max_consecutive_failures"]:
+                reason = f"{failures} consecutive failures"
+                break
+            (STATE / "change.txt").unlink(missing_ok=True)
+            command = " ".join(shlex.quote(c) for c in cfg["agent_cmd"]) + " " + shlex.quote(prompt(cfg, best, rows))
+            code, output = shell(command, timeout_min=cfg["agent_timeout_min"])
+            (STATE / "logs").mkdir(exist_ok=True)
+            (STATE / "logs" / f"agent-{iteration:03d}.log").write_text(output)
+            files = changed_files(ignore)
+            change = (STATE / "change.txt").read_text().strip() if (STATE / "change.txt").exists() else "(no description)"
+            row = {"iter": iteration, "time": datetime.now().strftime("%H:%M"), "files": ",".join(files), "change": change}
+            bad = outside(files, cfg["allowed"])
+            if code or not files or bad:
                 revert(files)
                 failures += 1
-                row.update(value="", decision="eval-failed")
+                row.update(value="", decision="agent-error" if code else ("no-op" if not files else f"outside:{','.join(bad)}"))
             else:
-                value = statistics.mean(values)
-                gain = value - best["value"] if cfg["direction"] == "max" else best["value"] - value
-                row.update(value=f"{value:.6g}", gain=f"{gain:.3g}")
-                failures = 0
-                if better(value, best["value"], best["delta"], cfg["direction"]):
-                    git("add", "-A", "--", *files)
-                    git("commit", "-q", "-m", f"goal iter {iteration}: {change} ({cfg['metric']}={value:.6g})")
-                    best.update(value=value, commit=git("rev-parse", "--short", "HEAD"))
-                    best_path.write_text(json.dumps(best, indent=2))
-                    row["decision"] = "kept"
-                else:
+                values = mean_eval(cfg, cfg["candidate_repeats"], f"iter-{iteration:03d}")
+                if values is None:
                     revert(files)
-                    row["decision"] = "rejected"
-        append_log(row)
-        rows.append(row)
-        print(f"iter {iteration}: {row['decision']} {row.get('value', '')} {change}")
-    else:
-        reason = "goal reached" if reached(best["value"], cfg["goal"], cfg["direction"]) else "max_iters"
-    finish(cfg, best, rows, reason, started)
-    return 0
+                    failures += 1
+                    row.update(value="", decision="eval-failed")
+                else:
+                    value = statistics.mean(values)
+                    gain = value - best["value"] if cfg["direction"] == "max" else best["value"] - value
+                    row.update(value=f"{value:.6g}", gain=f"{gain:.3g}")
+                    failures = 0
+                    if better(value, best["value"], best["delta"], cfg["direction"]):
+                        git("add", "-A", "--", *files)
+                        git("commit", "-q", "-m", f"goal iter {iteration}: {change} ({cfg['metric']}={value:.6g})")
+                        best.update(value=value, commit=git("rev-parse", "--short", "HEAD"))
+                        best_path.write_text(json.dumps(best, indent=2))
+                        row["decision"] = "kept"
+                    else:
+                        revert(files)
+                        row["decision"] = "rejected"
+            append_log(row)
+            rows.append(row)
+            print(f"iter {iteration}: {row['decision']} {row.get('value', '')} {change}")
+        else:
+            reason = "goal reached" if reached(best["value"], cfg["goal"], cfg["direction"]) else "max_iters"
+    except KeyboardInterrupt:
+        reason, clean = "interrupted (Ctrl+C)", False
+    except BaseException as error:  # notify on any crash, then re-raise below
+        reason, clean = f"crashed: {error}", False
+        finish(cfg, best, rows, reason, started, final_test=False)
+        raise
+    finish(cfg, best, rows, reason, started, final_test=clean)
+    return 0 if clean else 130
 
 
 if __name__ == "__main__":

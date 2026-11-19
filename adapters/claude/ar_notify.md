@@ -1,5 +1,5 @@
 ---
-description: "AutoResearch: send a concise Slack run summary with main figures"
+description: "AutoResearch: send a concise Slack text summary of a finished run"
 argument-hint: "[report path or extra note]"
 ---
 

@@ -227,13 +227,13 @@ For curated Python bundles, run this skill's `scripts/check_report_bundle.py` ag
 7. Create the planned full/tiny YAML pair and shared defaults, real-data fixture/manifest, and one thin debug entrypoint per experiment case.
 8. Prefer `uv` for Python package management when available, but allow `pip install` when necessary. Record installs.
 9. Run the tests and checks required by the selected plan, plus any explicitly requested checks. Skip unrelated extra verification. Capture exact commands and output for checks that ran.
-10. Run the tiny profile through the repository-root debugger entrypoint (`python run.py`) with full data unavailable; record finite forwards/updates, resolved configuration, output isolation and actual device. Use the same entrypoint with full config only for authorized scientific acquisition. Do not report a tiny run as a completed full experiment or infer MPS support from a CUDA/CPU run.
+10. Launch every experiment run through the completion notifier so its end always reaches Slack: `python .agents/skills/ar_notify/scripts/notify_run.py --name "<plan> <profile>" -- python run.py` (wrap the project's GPU claim helper inside it when required). Run the tiny profile through the repository-root debugger entrypoint (`python run.py`) with full data unavailable; record finite forwards/updates, resolved configuration, output isolation and actual device. Use the same entrypoint with full config only for authorized scientific acquisition. Do not report a tiny run as a completed full experiment or infer MPS support from a CUDA/CPU run.
 11. Export selected figures, adequate backing tables, core executed code and compact metadata into the chosen result bundle. Run the applicable publication check and isolated plot replay for scientific results.
 12. Create or refresh root `structure.md` from the final source.
 13. Write the report under the chosen report directory, with the same basename as the plan.
 14. Verify the report's first line, config/run mappings, artifact links, CSV headers, any planned or requested verification output, and `structure.md` signatures.
 15. Update `__board__/STATUS.md`.
-16. When a scientific or full-profile run ends (success or failure), send the Slack summary with `/ar_notify` (`$ar_notify`): `python .agents/skills/ar_notify/scripts/slack_notify.py --report <report.md>`. It posts the report's card and its first 1-3 figures; a `skipped` or `failed` status never changes the run outcome.
+16. Send the report card to Slack: `python .agents/skills/ar_notify/scripts/slack_notify.py --report <report.md>` (text and text tables). A `skipped` or `failed` status never changes the run outcome.
 
 ## Experiment Reporting Requirements
 

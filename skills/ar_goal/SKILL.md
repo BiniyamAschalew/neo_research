@@ -26,4 +26,4 @@ Each iteration: fresh agent session (`agent_cmd`) with the objective, best value
 
 ## Finish
 
-The driver evaluates the best commit once on the test split, writes `__board__/goal/summary.md` and `progress.png`, commits them, and sends the Slack summary via `ar_notify`. Report the test number as the result; the validation number is selection-biased after many iterations. Kept changes are separate commits, so the human can revert or cherry-pick any of them. When the idea closes, use the summary for `__board__/ideas/<slug>.md`.
+The driver evaluates the best commit once on the test split, writes `__board__/goal/summary.md` and `progress.png`, commits them, and sends a Slack text summary via `ar_notify` (also on crash or Ctrl+C). Report the test number as the result; the validation number is selection-biased after many iterations. Kept changes are separate commits, so the human can revert or cherry-pick any of them. When the idea closes, use the summary for `__board__/ideas/<slug>.md`.

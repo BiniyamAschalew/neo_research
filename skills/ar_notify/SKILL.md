@@ -1,35 +1,32 @@
 ---
 name: ar_notify
-description: Send a concise Slack summary (title, short text, 1-3 main figures) when an experiment run, ar_goal loop or ar_tree close finishes. Use at the end of every run; skip silently when Slack keys are absent.
+description: Slack text notifications for finished experiments. Launch every experiment run through notify_run.py so its completion (success, failure or interrupt) always posts a summary; send the report card after writing a report. Text and text tables only.
 ---
 
 # AR Notify
 
-Send one message per finished run. Never let a notification failure change the run's outcome.
+Every experiment completion must reach Slack. Notification failures never change a run's outcome.
 
-## Command
+## 1. Launch runs through the wrapper (automatic trigger)
 
-From the project root, resolving this skill's install path through its link:
+Run any experiment, tiny or full, foreground or in a Herdr tab, as:
+
+```bash
+python .agents/skills/ar_notify/scripts/notify_run.py --name "<idea> v3 full" -- python run.py
+# with the GPU claim helper:
+python .agents/skills/ar_notify/scripts/notify_run.py --name "<run>" -- python <persist_notify.py> run -- python run.py
+```
+
+When the command ends it posts: project/branch, run name, finished / FAILED (exit code) / interrupted, duration, host, and either the card of a report written during the run or the last 15 output lines. It exits with the command's own code. `ar_goal` notifies by itself at the end of a loop, including on crash or Ctrl+C.
+
+## 2. Send the report card after writing a report
 
 ```bash
 python .agents/skills/ar_notify/scripts/slack_notify.py --report __board__/reports/<id>/<id>.md
 ```
 
-`--report` uses the report title, its top section (Experiment Card or At a Glance, everything before `======`) and the first 1-3 figures in that section. Without a report:
-
-```bash
-python .agents/skills/ar_notify/scripts/slack_notify.py --title "<idea>: <run> done" \
-  --text "<2-4 lines: question, result with numbers, decision, next>" --figure <main.png>
-```
-
-Add `--dry-run` to preview. The script prints JSON with `status`: `sent`, `skipped` (no keys), or `failed`.
-
-## Message content
-
-- Title: idea slug and run name.
-- Text, 2-4 lines: what ran, the headline number versus baseline with uncertainty, whether the card's decision rule passed, the next step.
-- Figures: 1-3 of the main result figures, never synthetic previews.
+Sends the report title and its top card (everything before `======`), with markdown tables converted to aligned text tables. Free-form: `--title "..." --text "..."`. Add `--dry-run` to preview. The script prints JSON `status`: `sent`, `skipped` (no webhook) or `failed`; mention it in one line and continue.
 
 ## Keys
 
-`secrets/slack.env` in the neo_research checkout (gitignored; copy `secrets/slack.env.example`) or the file named by `AR_SLACK_ENV`. A webhook (`SLACK_WEBHOOK_URL`) sends text only; figures need `SLACK_BOT_TOKEN` (scopes `chat:write`, `files:write`) and `SLACK_CHANNEL_ID`. Report `skipped` or `failed` in one line and continue.
+`secrets/slack.env` in the neo_research checkout (gitignored; copy `secrets/slack.env.example`) with `SLACK_WEBHOOK_URL=<Incoming Webhook URL>`, or the file named by `AR_SLACK_ENV`.

@@ -11,7 +11,7 @@ supporting references; the artifact helper lives with `ar_dev`.
 - `ar_mate`: the first mate in Herdr tab 0; `mate_status.py` shows every idea's agent state, phase, latest result and GPU use.
 - `ar_goal`: `goal.py` runs an overnight hill-climb in an idea worktree, one component change per iteration, kept only when validation beats the best by more than measured noise; sealed test once at the end.
 - Plans start with a 20-line Experiment Card (Flow, Compare, Decide, Edit me) that the human edits before `ar_dev`; reports start with the same card as Planned vs Actual.
-- `ar_notify`: Slack summary with 1-3 main figures at every run end. Copy `secrets/slack.env.example` to `secrets/slack.env` (gitignored) and add a webhook (text only) or a bot token + channel (figures).
+- `ar_notify`: Slack text notifications. `notify_run.py -- python run.py` posts automatically when any run ends (status, duration, report card or output tail); `slack_notify.py --report` sends a report's card with text tables. Copy `secrets/slack.env.example` to `secrets/slack.env` (gitignored) and paste an Incoming Webhook URL.
 
 ## Install or refresh project links
 
