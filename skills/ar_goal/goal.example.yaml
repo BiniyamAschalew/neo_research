@@ -1,0 +1,24 @@
+# Copy to <idea worktree>/__board__/goal.yaml and edit. Paths are relative to the worktree root.
+objective: "Improve validation AUC of the TFM head by changing one component at a time (loss, head, normalization, schedule)."
+eval_cmd: "python run.py"                 # must honor AR_GOAL_SPLIT=val|test and write metrics_file
+metrics_file: "__board__/goal/metrics.json"
+metric: "val_auc"                         # dotted key into metrics_file
+test_metric: "test_auc"                   # read once at the end with AR_GOAL_SPLIT=test
+direction: max                            # max | min
+goal: 0.85                                # stop when reached (null = run the budget)
+allowed:                                  # the agent may only edit these (fnmatch globs)
+  - "src/models/head.py"
+  - "src/models/losses.py"
+  - "config/goal/*.yaml"
+max_iters: 20
+max_hours: 8
+baseline_repeats: 3                       # noise threshold = delta_std_factor * std of these runs
+candidate_repeats: 1
+delta_std_factor: 2.0
+min_delta: null                           # set a number to override the noise threshold
+max_consecutive_failures: 3
+agent_cmd: ["claude", "-p", "--permission-mode", "acceptEdits"]   # or ["codex", "exec", "-s", "workspace-write"]
+agent_timeout_min: 30
+eval_timeout_min: 120
+gpu_wrapper: ""                           # e.g. "python /path/persist_notify.py run --"
+final_test: true

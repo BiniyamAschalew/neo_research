@@ -218,7 +218,7 @@ For curated Python bundles, run this skill's `scripts/check_report_bundle.py` ag
 
 ## Execution Workflow
 
-1. Read `__board__/STATUS.md` and the selected plan fully.
+1. Read `__board__/STATUS.md` and the selected plan fully. Its Experiment Card is authoritative: where the human edited the card and the appendix disagrees, follow the card and note the conflict in the report.
 2. Read referenced reports, notes, and refs when those paths exist.
 3. Read and verify `structure.md`, or inventory the source directly if this is the first development run.
 4. Inspect all source, tests, utilities, configs, and entrypoints relevant to the plan.
@@ -233,6 +233,7 @@ For curated Python bundles, run this skill's `scripts/check_report_bundle.py` ag
 13. Write the report under the chosen report directory, with the same basename as the plan.
 14. Verify the report's first line, config/run mappings, artifact links, CSV headers, any planned or requested verification output, and `structure.md` signatures.
 15. Update `__board__/STATUS.md`.
+16. When a scientific or full-profile run ends (success or failure), send the Slack summary with `/ar_notify` (`$ar_notify`): `python .agents/skills/ar_notify/scripts/slack_notify.py --report <report.md>`. It posts the report's card and its first 1-3 figures; a `skipped` or `failed` status never changes the run outcome.
 
 ## Experiment Reporting Requirements
 
@@ -263,7 +264,7 @@ Write the report's methods and results like a concise experiments section of a r
 
 After the title and metadata, write each report in two parts:
 
-1. **At a Glance:** Aim for two short paragraphs in plain language for a human reading in a rush. Lead with the question and actual outcome, then explain what the evidence supports, whether the planned criterion passed, the main limitation and its practical implication. Put key numbers, scope and verification facts in a compact table or simple diagram when useful. Keep effect sizes and uncertainty faithful to the detailed results, including negative, inconclusive or incomplete findings; leave implementation inventories and full experimental detail to the second part.
+1. **Experiment Card — Planned vs Actual:** the plan's card rows with a third column giving what actually ran and the result, then one line **Verdict** (decision rule passed / failed / inconclusive, with the number) and one line **Next**. Then the 1-3 main result figures with captions. Keep it under 25 lines plus figures; keep effect sizes and uncertainty faithful to the detailed results, including negative or incomplete findings. Slack sends this section.
 2. Put the exact separator `======` on its own line, with blank lines around it. Then retain the complete detailed report structure below, starting with Summary. The overview supplements the detailed report; all methods, metric definitions, results, captioned figures, reproduction information and caveats still belong in that part. Both parts must agree.
 
 ## Report Structure
@@ -281,19 +282,25 @@ Debug entrypoint: `run.py` | Command: `python run.py`
 **Result Bundle**: `__board__/reports/<report-id>/`
 **Primary Config**: `config/<version>/<case>/tiny.yaml` [record actual selected profile]
 
-## At a Glance
+## Experiment Card — Planned vs Actual
 
-[Short paragraph: what was investigated or changed, the headline outcome and whether the planned criterion passed.]
+| | Planned | Actual |
+|---|---|---|
+| **Question** | [from plan] | [unchanged / how it shifted] |
+| **Change** | [from plan] | [what was implemented] |
+| **Flow** | [from plan] | [actual shapes, counts, steps] |
+| **Compare** | [A vs B] | [configs actually run] |
+| **Runs** | [planned total] | [completed / failed] |
+| **Metric** | [definition] | [A, B, Δ with uncertainty] |
+| **Decide** | [rule] | [passed / failed / inconclusive] |
+| **Budget** | [planned] | [actual GPU-hours, device] |
 
-[Short paragraph: what the result means, its main uncertainty or limitation, and the practical implication or next decision.]
+**Verdict**: [One line with the deciding number.]
+**Next**: [One line.]
 
-[When useful, add a compact table like the one below or a simple diagram. Adapt or omit rows; for non-experiment work, report implementation and verification status rather than invented metrics.]
+![Main result](figures/<main-plot>.png)
 
-| Detail | Finding |
-|---|---|
-| Scope / comparison | [Evaluation population and compared methods, or implementation scope] |
-| Main result | [Effect size and uncertainty, or completion status] |
-| Guardrails / verification | [Material caveat, guardrail outcome and relevant checks] |
+*Figure 1. [Self-contained caption.] Backing data: [`<main-plot>.csv`](tables/<main-plot>.csv).*
 
 ======
 
@@ -363,7 +370,7 @@ Include this section when tests or checks were required by the selected plan or 
 - [ ] [Concrete next action]
 ````
 
-If the iteration has no experiment, use the most relevant executable validation entrypoint on the first line. Use `N/A` only when no runnable entrypoint exists, and explain why under caveats. Keep the opening overview concise and the main findings selective. Retain the complete detailed methods, metrics, captions and caveats after the `======` separator. Keep the existing first-line debugger declaration before the title; place At a Glance after the metadata.
+If the iteration has no experiment, use the most relevant executable validation entrypoint on the first line. Use `N/A` only when no runnable entrypoint exists, and explain why under caveats. Keep the opening overview concise and the main findings selective. Retain the complete detailed methods, metrics, captions and caveats after the `======` separator. Keep the existing first-line debugger declaration before the title; place the Planned vs Actual card after the metadata.
 
 ## Status Update Rules
 

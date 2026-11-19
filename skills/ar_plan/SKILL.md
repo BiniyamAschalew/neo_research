@@ -102,18 +102,18 @@ Do not put model, dataset, or experiment implementation in either runner file. K
 
 When the planned work will publish plots (for example a training-loss curve, metric-by-condition bars, a calibration plot or a heatmap), the plan must show the human what each final plot will look like before `$ar_dev` runs, so they can understand the planned evidence and request edits early.
 
-- List every main figure the final report is expected to contain, derived from the planned comparisons and decision rules. Usually 1-4 previews; skip minor supplements.
+- List every main figure the final report is expected to contain, derived from the planned comparisons and decision rules. Show at most 2 previews in the card (the figures that decide the question); list any others only in the detailed part.
 - For each, render a preview with **synthetic data** that shows the ideal or hypothesized outcome. Match the planned final plot exactly in chart type, panels, axes and units, scales, series/conditions and their labels, colors, uncertainty encoding (bands, error bars, seeds), reference lines and decision thresholds. Use plausible magnitudes informed by prior reports when available.
 - Mark every preview unambiguously as synthetic: put `SYNTHETIC PREVIEW` in the figure title or a corner annotation, and say so in the caption. Never present preview values as results or reuse them anywhere in the detailed plan as expected numbers.
 - Save images as `__board__/plans/v{N}.{slug}/figures/<descriptive-plot-name>.png`, using the filename the final report figure is planned to have. Save the small, seeded generator as `__board__/plans/v{N}.{slug}/preview_plots.py`; it must use only matplotlib/numpy (or the project's existing plotting library), read no project data, and run from any directory. Run it and visually inspect each image before finishing the plan.
-- Embed the previews in the At a Glance part, directly after the summary paragraphs/table and immediately before the `======` separator, each with an italic caption `*Preview N. [What the final plot will show, what comparison to read and what the synthetic pattern illustrates]. Synthetic data.*`.
+- Embed the previews at the end of the Experiment Card, immediately before the `======` separator, each with an italic caption `*Preview N. [What the final plot will show, what comparison to read and what the synthetic pattern illustrates]. Synthetic data.*`.
 - In the detailed part, record these figures as the planned figure contract (name, backing table, encodings) under Test and Debug Validation or Files Expected to Change, so `$ar_dev` produces the same plots from real data unless the human edits them.
 - If the plan produces no plots (for example code-only work), write `_No figures planned._` in that position instead and create no preview folder.
 
 ## Planning Workflow
 
-1. Read `__board__/STATUS.md`.
-2. Scan relevant plans and any existing report bundles, notes, and refs.
+1. Read `__board__/STATUS.md`, and `__board__/IDEA.md` when working inside an `ar_tree` idea worktree.
+2. Scan relevant plans, existing report bundles, notes and refs, and the closed-idea summaries `__board__/ideas/*.md` in the main checkout. Do not re-plan a failed approach unless its "Don't retry unless" condition now holds; say which.
 3. Determine the next `vN` from `__board__/plans/`.
 4. Read and verify the relevant `structure.md` entries, or inspect affected source directly if it does not yet exist.
 5. Inspect relevant source, shared utilities, tests, configs, and run files.
@@ -127,8 +127,8 @@ When the planned work will publish plots (for example a training-loss curve, met
 
 After the title and metadata, write each plan in two parts:
 
-1. **At a Glance:** Aim for two short paragraphs in plain language for a human reading in a rush. Explain the question, why it matters, the proposed approach and comparison, and what the experiment will let us decide. Keep the important scope, success conditions and limitations visible. Put supporting setup facts in a compact table or simple diagram when that makes them easier to scan; leave exhaustive settings, file lists and implementation steps to the detailed part. End this part with the expected-figure previews (see above), so they sit right after the summary and right before the separator.
-2. Put the exact separator `======` on its own line, with blank lines around it. Then retain the complete detailed plan structure below, starting with Objective. The overview supplements the detailed plan; it does not replace tasks, acceptance criteria, references or implementation guidance. Both parts must agree.
+1. **Experiment Card:** at most 20 lines that let the human see exactly how the experiment will run and edit it before `$ar_dev`. Use the fixed rows in the template. The **Flow** row is concrete pseudo-code with real names, shapes and counts (`X_train[4096×32] → Encoder(d=128) → head → AUC(val)`), not prose. **Change** states the single thing that differs from the baseline. **Decide** is the numeric decision rule. **Edit me** lists the YAML keys the human may safely change. No motivation paragraphs. End with at most 2 synthetic previews.
+2. Put the exact separator `======` on its own line, with blank lines around it. Then retain the complete detailed plan structure below, starting with Objective, as an appendix for the agent. The card is authoritative: when the human edits the card, update the appendix to match before `$ar_dev`, and `$ar_dev` follows the card where they conflict.
 
 ## Plan Template
 
@@ -140,25 +140,25 @@ After the title and metadata, write each plan in two parts:
 **Task**: [Original task description]
 **Branch** (suggested): [optional branch name]
 
-## At a Glance
+## Experiment Card
 
-[Short paragraph: the question, motivation and intended outcome, understandable without reading the detailed plan.]
-
-[Short paragraph: the main approach and comparison, what will determine success, and the most important limitation or boundary.]
-
-[When useful, add a compact table like the one below or a simple diagram. Adapt or omit rows to keep only the relevant details.]
-
-| Detail | Planned setup |
+| | |
 |---|---|
-| Scope | [Data, models and main comparison] |
-| Success check | [Primary metric and acceptance criterion] |
-| Cost / limits | [Relevant resource budget and key scope boundary] |
-
-### Expected Figures (synthetic previews)
+| **Question** | [One sentence.] |
+| **Change** | [Baseline + the one component that differs; nothing else changes.] |
+| **Flow** | `load(D: n=…, split …) → model(M, key dims) → train(k steps, opt, lr) → eval(metric on val)` |
+| **Compare** | A = `config/v{N}/<case>/full.yaml` (baseline) vs B = `…` (change) |
+| **Data / splits** | [Datasets, split roles; test touched only at the end.] |
+| **Runs** | [seeds × datasets × arms = total; independent unit.] |
+| **Metric** | [Primary metric, direction, aggregation, uncertainty.] |
+| **Decide** | [e.g. keep if ΔAUC ≥ 0.01 and 95% CI > 0; else stop the idea.] |
+| **Budget** | [GPUs × hours; tiny check first.] |
+| **Edit me** | [YAML keys the human may change: `lr`, `k`, `datasets`, `seeds`.] |
+| **Out of scope** | [One line.] |
 
 ![SYNTHETIC PREVIEW: descriptive alt text](v{N}.{slug}/figures/<descriptive-plot-name>.png)
 
-*Preview 1. [What the final plot will show, the comparison to read, and the outcome the synthetic pattern illustrates]. Synthetic data, not results.*
+*Preview 1. [What the final plot will show and which comparison decides the question]. Synthetic data, not results.*
 
 [Repeat for each main figure, or write `_No figures planned._`]
 
@@ -248,7 +248,8 @@ After the title and metadata, write each plan in two parts:
 - Include output for tests/checks included in the plan or explicitly requested. If neither applies, record that verification was not required by the plan or request.
 - Require the final report's first line to name the primary debug entrypoint and command.
 - Keep each plan to one coherent iteration.
+- Keep the Experiment Card at most 20 lines plus at most 2 previews; it must agree with the appendix.
 - Do not implement code while using this skill. The only exception is the plan-local `preview_plots.py` that renders synthetic expected-figure previews.
 - Keep generated planning output, including preview figures and their generator, under `__board__/plans/`.
 
-End with the plan path and next invocation. If the user already authorized downstream execution, continue under ar_dev without requesting the same approval again.
+End with the plan path, the Experiment Card itself (so the human can edit it before running), and the next invocation. If the user already authorized downstream execution, continue under ar_dev without requesting the same approval again.

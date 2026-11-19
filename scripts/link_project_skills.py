@@ -10,7 +10,7 @@ import shutil
 import tempfile
 
 
-SKILLS = ("ar_plan", "ar_dev", "ar_metaplan")
+SKILLS = ("ar_plan", "ar_dev", "ar_metaplan", "ar_tree", "ar_mate", "ar_goal", "ar_notify")
 
 
 def destinations(projects, canonical):

@@ -36,9 +36,12 @@ Use the AutoResearch command names:
 | `/ar_plan <task>` | `/ar_plan Implement preprocessing` | Generate a plan under `__board__/plans/` |
 | `/ar_dev [plan]` | `/ar_dev v3.preprocessing` | Execute a plan and write a report under `__board__/reports/` |
 | `/ar_note <topic>` | `/ar_note optimizer comparison` | Write a technical note under `__board__/notes/` |
-| `/ar_notify [note]` | `/ar_notify experiment finished` | Send a notification when configured |
+| `/ar_notify [report]` | `/ar_notify __board__/reports/v3/v3.md` | Slack summary with 1-3 main figures when keys are set |
+| `/ar_tree new\|close <slug>` | `/ar_tree new head-swap` | One worktree per idea; only a summary returns to main |
+| `/ar_mate [request]` | `/ar_mate status` | First mate coordinating idea worktrees in Herdr |
+| `/ar_goal [goal.yaml]` | `/ar_goal` | Overnight one-change-at-a-time improvement loop |
 
-Codex uses matching skills instead of slash commands: `$ar_plan`, `$ar_dev`, and `$ar_note`.
+Codex uses matching skills instead of slash commands: `$ar_plan`, `$ar_dev`, `$ar_note`, `$ar_tree`, `$ar_mate`, `$ar_goal` and `$ar_notify`.
 
 ## Python Environment
 

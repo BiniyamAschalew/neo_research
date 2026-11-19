@@ -37,7 +37,7 @@ class SkillLinkTests(unittest.TestCase):
 
     def test_preserves_originals_and_is_idempotent(self):
         preview = LINKS.install([self.project], self.canonical)
-        self.assertEqual(len(preview["changes"]), 7)
+        self.assertEqual(len(preview["changes"]), 2 * len(LINKS.SKILLS) + 1)
         self.assertEqual((self.original / "SKILL.md").read_text(), "local changes")
         result = LINKS.install([self.project], self.canonical, apply=True)
         self.assertEqual(self.original.resolve(), self.canonical / "skills/ar_dev")
@@ -54,7 +54,7 @@ class SkillLinkTests(unittest.TestCase):
         (self.project / ".claude").mkdir()
         (alias / ".claude").symlink_to("../project/.claude", target_is_directory=True)
         result = LINKS.install([self.project, alias], self.canonical, apply=True)
-        self.assertEqual(len(result["changes"]), 7)
+        self.assertEqual(len(result["changes"]), 2 * len(LINKS.SKILLS) + 1)
         self.assertEqual((alias / ".agents/skills/ar_dev").resolve(), self.canonical / "skills/ar_dev")
 
     def test_broken_entrypoint_link_is_preserved(self):

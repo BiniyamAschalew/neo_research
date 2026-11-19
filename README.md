@@ -5,6 +5,14 @@ directories; Claude commands link to the thin adapters under `adapters/claude/`,
 which read the same definitions. `ar_plan`, `ar_dev` and `ar_metaplan` share
 supporting references; the artifact helper lives with `ar_dev`.
 
+## Ideas, first mate, goal loop and Slack (`tree` branch)
+
+- `ar_tree`: one git worktree and Herdr tab per idea (`../<project>.ideas/<slug>`, branch `idea/<slug>`). Closing an idea commits only `__board__/ideas/<slug>.md` (approach, main results, why it failed, when to retry) to main, tags the code as `archive/<slug>`, and moves raw results to `~/ar_archive/`. `bury` does the same for old experiments already on main.
+- `ar_mate`: the first mate in Herdr tab 0; `mate_status.py` shows every idea's agent state, phase, latest result and GPU use.
+- `ar_goal`: `goal.py` runs an overnight hill-climb in an idea worktree, one component change per iteration, kept only when validation beats the best by more than measured noise; sealed test once at the end.
+- Plans start with a 20-line Experiment Card (Flow, Compare, Decide, Edit me) that the human edits before `ar_dev`; reports start with the same card as Planned vs Actual.
+- `ar_notify`: Slack summary with 1-3 main figures at every run end. Copy `secrets/slack.env.example` to `secrets/slack.env` (gitignored) and add a webhook (text only) or a bot token + channel (figures).
+
 ## Install or refresh project links
 
 Keep this checkout alongside your projects on each machine. From this checkout:
@@ -34,7 +42,7 @@ requirements and existing runner/report conventions. New defaults provide
 config-selected full/tiny execution with actual-data fixtures, explicit device
 and weight prerequisites, and curated reproducible scientific publications.
 
-The installer changes only these three workflows and their shared references.
+The installer changes only the linked workflows (`ar_plan`, `ar_dev`, `ar_metaplan`, `ar_tree`, `ar_mate`, `ar_goal`, `ar_notify`) and their shared references.
 It leaves other skills, notifications, project data, results and local policies
 in place. It does not stage, commit or push. Project ignore rules must allow the
 adapter links; fixture/data publication rules remain project configuration.
