@@ -113,8 +113,9 @@ def install_host(dry_run, log):
     log.append(f"note     no machine rules; add {HOST_FILE} if this host needs any (see hosts/)")
 
 
-def link_agents(project, replace=False, dry_run=False, log=None):
-    """Shared links + local Claude settings only. Also used by ar_tree for new worktrees."""
+def link_agents(project, replace=False, dry_run=False, log=None, settings_target=None):
+    """Shared links + local Claude settings only. Also used by ar_tree for new worktrees,
+    whose settings point at the main checkout's board (settings_target) so approvals are shared."""
     log = [] if log is None else log
     project = Path(project).resolve()
     backup = project / "__board__/notes/local/ar_init-backup" / datetime.now().strftime("%Y%m%dT%H%M%S")
@@ -128,6 +129,8 @@ def link_agents(project, replace=False, dry_run=False, log=None):
     for relative, shared in SHARED.items():
         place_link(project / relative, NEO / shared, replace, backup, dry_run, log)
     link, store = (project / p for p in LOCAL_SETTINGS)
+    if settings_target:
+        store = Path(settings_target)
     if not dry_run:
         store.parent.mkdir(parents=True, exist_ok=True)
         if link.exists() and not link.is_symlink() and not store.exists():
@@ -135,7 +138,8 @@ def link_agents(project, replace=False, dry_run=False, log=None):
             log.append(f"move     .claude/settings.local.json -> {store.relative_to(project)}")
         if not store.exists():
             store.write_text("{}\n")
-    place_link(link, Path("../__board__/claude/settings.local.json"), replace, backup, dry_run, log)
+    target = store if settings_target else Path("../__board__/claude/settings.local.json")
+    place_link(link, target, replace, backup, dry_run, log)
     return log
 
 
@@ -145,7 +149,8 @@ def init(project, replace=False, dry_run=False):
         raise SystemExit(f"Not a directory: {project}")
     if project == NEO:
         raise SystemExit("Run ar_init on a research project, not on neo_research itself.")
-    log = [f"project  {project}", f"shared   {NEO}"]
+    branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=NEO, text=True, capture_output=True).stdout.strip()
+    log = [f"project  {project}", f"shared   {NEO} (branch {branch or '?'}; every linked project follows this checkout live)"]
     board = project / "__board__"
     if not board.exists():
         log.append("create   __board__/")

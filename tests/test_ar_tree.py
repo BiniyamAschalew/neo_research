@@ -94,6 +94,18 @@ class ArTreeTests(unittest.TestCase):
         self.assertFalse((self.repo / "old").exists())
         self.assertIn("old/exp.py", sh("git", "show", "--name-only", "archive/old-exp", cwd=self.repo))
 
+    def test_parallel_new_keeps_every_row_and_shares_settings(self):
+        procs = [subprocess.Popen([sys.executable, str(SCRIPT), "new", f"p{i}", "--question", "q", "--no-herdr"], cwd=self.repo,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) for i in range(4)]
+        self.assertEqual([p.wait() for p in procs], [0] * 4)
+        registry = (self.repo / "__board__/ideas.md").read_text()
+        self.assertEqual(sum(f"| p{i} |" in registry for i in range(4)), 4)
+        work = self.repo.parent / "proj.ideas/p0"
+        self.assertTrue((work / ".agents/skills/ar_tree/SKILL.md").exists())
+        self.assertEqual(Path(os.readlink(work / ".claude/settings.local.json")),
+                         self.repo / "__board__/claude/settings.local.json")
+        self.assertEqual(sh("git", "status", "--porcelain", cwd=work), "")
+
 
 if __name__ == "__main__":
     unittest.main()

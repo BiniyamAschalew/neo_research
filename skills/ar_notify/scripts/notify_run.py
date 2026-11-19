@@ -32,10 +32,11 @@ def duration(seconds):
 
 def git_label():
     try:
-        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], text=True, capture_output=True, check=True).stdout.strip()
+        # main checkout name, so idea worktrees still show which project they belong to
+        first = subprocess.run(["git", "worktree", "list", "--porcelain"], text=True, capture_output=True, check=True).stdout.splitlines()[0]
         branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True, capture_output=True).stdout.strip()
-        return f"{Path(top).name}/{branch}"
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        return f"{Path(first.split(' ', 1)[1]).name}/{branch}"
+    except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
         return Path.cwd().name
 
 

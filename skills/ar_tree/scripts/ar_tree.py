@@ -11,7 +11,8 @@ Destructive commands are dry runs unless --yes is given.
 """
 
 import argparse
-from datetime import date
+from contextlib import contextmanager
+from datetime import date, datetime
 import importlib.machinery
 import importlib.util
 import json
@@ -34,15 +35,16 @@ ARCHIVE = Path(os.environ.get("AR_ARCHIVE", Path.home() / "ar_archive"))
 NEO_INIT = Path(__file__).resolve().parents[3] / "ar_init"
 
 
-def link_shared(tree):
-    """Give a new worktree the same shared agent links as the main checkout (ar_init)."""
+def link_shared(tree, root):
+    """Give a new worktree the same shared agent links as the main checkout (ar_init).
+    Claude's local settings point at the main checkout's board, so approvals are shared per project."""
     if not NEO_INIT.exists():
         return []
     loader = importlib.machinery.SourceFileLoader("ar_init", str(NEO_INIT))
     spec = importlib.util.spec_from_loader("ar_init", loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
-    log = module.link_agents(tree)
+    log = module.link_agents(tree, settings_target=root / "__board__/claude/settings.local.json")
     module.git_exclude(tree, False, log)
     return log
 
@@ -92,6 +94,16 @@ def main_root(cwd="."):
     """The primary checkout, even when called from inside an idea worktree."""
     first = git("worktree", "list", "--porcelain", cwd=cwd).splitlines()[0]
     return Path(first.split(" ", 1)[1])
+
+
+@contextmanager
+def registry_lock(root):
+    """Serialize registry/main-checkout changes when several agents run ar_tree at once."""
+    import fcntl
+    common = (root / git("rev-parse", "--git-common-dir", cwd=root)).resolve()
+    with open(common / "ar_tree.lock", "w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
 
 
 def read_rows(root):
@@ -154,11 +166,11 @@ def cmd_new(args):
                      f"\nWork only inside this worktree. When done, the mate or human runs `ar_tree close {args.slug} ...`.\n")
     git("add", "__board__/IDEA.md", cwd=tree)
     git("commit", "-q", "-m", f"idea: start {args.slug}", cwd=tree)
-    link_shared(tree)
+    link_shared(tree, root)
     row = dict(slug=args.slug, status="active", question=args.question, branch=branch, base=f"{args.base}@{base_sha}",
                worktree=str(tree), tab="", pane="", created=date.today().isoformat(), closed="")
     if not args.no_herdr:
-        created = herdr("tab", "create", "--cwd", str(tree), "--label", args.slug, "--no-focus")
+        created = herdr("tab", "create", "--cwd", str(tree), "--label", f"{root.name}:{args.slug}", "--no-focus")
         if created:
             row["tab"] = created.get("result", {}).get("tab", {}).get("tab_id", "")
             row["pane"] = created.get("result", {}).get("root_pane", {}).get("pane_id", "")
@@ -218,6 +230,11 @@ def ignored_paths(tree):
             and Path(p).parts[0] not in AGENT_LINKS and not p.startswith("__board__/claude")]
 
 
+def unique(path):
+    """Never merge into an existing archive (same slug reused, or two projects with one name)."""
+    return path if not path.exists() else path.with_name(f"{path.name}-{datetime.now():%Y%m%dT%H%M%S}")
+
+
 def archive_ignored(tree, dest, paths):
     for relative in paths:
         source = tree / relative
@@ -260,7 +277,7 @@ def cmd_close(args):
     summary = ensure_summary(root, row, args.verdict)
     problems = summary_problems(summary)
     raw = ignored_paths(tree) if has_tree else []
-    dest = ARCHIVE / root.name / args.slug
+    dest = unique(ARCHIVE / root.name / args.slug)
     keep, drop = win_files(root, base, row["branch"]) if args.verdict == "win" else ([], [])
     plan = {
         "verdict": args.verdict,
@@ -289,18 +306,20 @@ def cmd_close(args):
     if drop:
         git("rm", "-q", "--", *drop, cwd=root)
         paths += drop
-    row["status"] = {"dead": "dead", "parked": "parked", "win": "merged"}[args.verdict]
-    row["closed"] = date.today().isoformat()
-    if has_tree:
-        git("worktree", "remove", str(tree), cwd=root)
-        row["worktree"] = ""
-    if row["tab"]:
-        herdr("tab", "close", row["tab"])
-        row["tab"] = row["pane"] = ""
+    tab = row["tab"]
+    row.update(status={"dead": "dead", "parked": "parked", "win": "merged"}[args.verdict],
+               closed=date.today().isoformat(), worktree="", tab="", pane="")
     write_rows(root, rows)
     git("add", "--", *[p for p in paths if p not in drop], cwd=root)
     git("commit", "-q", "-m", f"ideas: close {args.slug} ({args.verdict})", "--", *paths, cwd=root)
-    if args.verdict != "parked":
+    # Only after the summary is safely on main: remove the worktree, tab and branch.
+    if has_tree:
+        removed = subprocess.run(["git", "worktree", "remove", str(tree)], cwd=root, text=True, capture_output=True)
+        if removed.returncode:
+            plan["warning"] = f"summary committed but worktree not removed: {removed.stderr.strip()}"
+    if tab:
+        herdr("tab", "close", tab)
+    if args.verdict != "parked" and "warning" not in plan:
         git("branch", "-D", row["branch"], cwd=root)
     plan["status"] = "done"
     plan["backup_tag"] = f"git push origin archive/{args.slug}"
@@ -321,7 +340,7 @@ def cmd_bury(args):
     tracked = git("ls-files", "--", *args.paths, cwd=root).splitlines()
     raw = [p for p in git("ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--", *args.paths, cwd=root).splitlines()
            if p and not set(Path(p.rstrip("/")).parts) & SKIP_ARCHIVE]
-    dest = ARCHIVE / root.name / args.slug
+    dest = unique(ARCHIVE / root.name / args.slug)
     plan = {"tag": f"archive/{args.slug} -> HEAD", "summary": str(summary), "summary_problems": summary_problems(summary),
             "git_rm_tracked_files": len(tracked), "move_ignored_to": str(dest) if raw else None, "ignored_paths": raw}
     if plan["summary_problems"] or not args.yes:
@@ -373,6 +392,9 @@ def parser():
 def main():
     args = parser().parse_args()
     handler = {"new": cmd_new, "list": cmd_list, "summary": cmd_summary, "close": cmd_close, "bury": cmd_bury}[args.command]
+    if args.command in {"new", "close", "bury"}:
+        with registry_lock(main_root()):
+            return handler(args) or 0
     return handler(args) or 0
 
 

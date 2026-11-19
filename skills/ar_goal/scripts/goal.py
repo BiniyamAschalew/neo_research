@@ -175,7 +175,8 @@ def finish(cfg, best, rows, reason, started, final_test=True):
             f"({len(kept)}/{len(rows)} changes kept, noise {best['delta']:.3g}).\n"
             f"Sealed test: {'not run' if test_value is None else f'{test_value:.4g}'}\n" + "\n".join(table)
             + f"\nSummary: `{summary}`")
-    notify(f"ar_goal {Path.cwd().name}: {reason}", text)
+    project = Path(git("worktree", "list", "--porcelain").splitlines()[0].split(" ", 1)[1]).name
+    notify(f"ar_goal {project}/{git('rev-parse', '--abbrev-ref', 'HEAD')}: {reason}", text)
     print(summary.read_text())
 
 

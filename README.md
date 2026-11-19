@@ -25,6 +25,8 @@ From this checkout:
 
 It links `.agents`, `.codex`, `AGENTS.md`, `.claude/commands` and `.claude/CLAUDE.md` to this checkout (absolute links, ignored through `.git/info/exclude`), keeps `.claude/` itself a real per-project folder, links `.claude/settings.local.json` to `__board__/claude/` so Claude's per-project state stays with the project, and creates `__board__/PROJECT.md` for project specifics. Machine rules (for example the GPU persist.py claim) live in `~/.config/ar/host.md`; `ar_init` installs the matching file from `hosts/` when it detects the machine. New skills added here appear in every project immediately; `ar_tree new` repeats the links in each idea worktree. Rerunning is idempotent and re-points stale links.
 
+Every linked project follows this checkout live: switching its branch or editing a skill changes running agents in all projects. Link projects to a checkout that stays on a stable branch, and develop neo_research in a separate worktree (`git worktree add ../neo_research.dev tree`) or clone. Run `ar_init` once per machine; links are absolute and never committed.
+
 ## Install or refresh project links (legacy per-skill installer)
 
 Keep this checkout alongside your projects on each machine. From this checkout:
