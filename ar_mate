@@ -23,6 +23,7 @@ import sys
 NEO = Path(__file__).resolve().parent
 SKILL = NEO / "skills/ar_mate/SKILL.md"
 WATCH = NEO / "skills/ar_mate/scripts/mate_watch.py"
+GUARD = NEO / "skills/ar_mate/scripts/mate_guard.py"
 _notify = importlib.util.spec_from_file_location("slack_notify", NEO / "skills/ar_notify/scripts/slack_notify.py")
 PROJECT_ENV = importlib.util.module_from_spec(_notify)
 _notify.loader.exec_module(PROJECT_ENV)
@@ -66,6 +67,8 @@ def main():
         subprocess.run([sys.executable, str(WATCH), "--ensure"], cwd=root)
     first = f"{AGENTS.skill('ar_mate', args.agent)} status"
     permissions = [] if args.ask else agent["mate"]
+    if agent.get("guard"):  # hard stop on code edits by the mate (Claude); Codex relies on the rules
+        permissions = [*permissions, *agent["guard"](GUARD)]
     if agent["rules"]:
         command = [*agent["interactive"], *permissions, *agent["rules"](SKILL), *extra, first]
     else:

@@ -40,7 +40,7 @@ class AgentTests(unittest.TestCase):
                 (fake / name).write_text(f"#!{sys.executable}\nimport sys, json; print(json.dumps(sys.argv[1:]))\n")
                 (fake / name).chmod(0o755)
             env = {**os.environ, "PATH": f"{fake}:{os.environ['PATH']}"}
-            for agent, permission, first in (("claude", ["--permission-mode", "auto"], "/ar_mate status"),
+            for agent, permission, first in (("claude", ["--permission-mode", "auto", "--settings"], "/ar_mate status"),
                                              ("codex", ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"'],
                                               "$ar_mate status")):
                 out = subprocess.run([str(NEO / "ar_mate"), agent, "--no-watch", "--", "--model", "x"], cwd=project,
@@ -91,6 +91,18 @@ class AgentTests(unittest.TestCase):
         self.assertIn("conda shell.bash hook", notify.activation({"CONDA_ENV": "opal"}))
         self.assertEqual(notify.activation({"ENV_ACTIVATE": "source .venv/bin/activate"}), "source .venv/bin/activate")
         self.assertEqual(notify.activation({}), "")
+
+    def test_mate_guard_blocks_code_edits_but_not_the_board(self):
+        guard = NEO / "skills/ar_mate/scripts/mate_guard.py"
+        def decide(path):
+            event = {"cwd": "/p", "tool_name": "Write", "tool_input": {"file_path": path}}
+            out = subprocess.run([sys.executable, str(guard)], input=json.dumps(event), text=True, capture_output=True).stdout
+            return json.loads(out)["hookSpecificOutput"]["permissionDecision"] if out.strip() else "allow"
+        self.assertEqual(decide("mnist_mlp.py"), "deny")
+        self.assertEqual(decide("/p/models/x.py"), "deny")
+        self.assertEqual(decide("__board__/ideas/x.md"), "allow")
+        settings = json.loads(AGENTS.AGENTS["claude"]["guard"](guard)[1])
+        self.assertEqual(settings["hooks"]["PreToolUse"][0]["matcher"], "Edit|Write|NotebookEdit|MultiEdit")
 
 
 if __name__ == "__main__":

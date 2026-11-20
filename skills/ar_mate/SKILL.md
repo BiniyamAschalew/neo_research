@@ -9,6 +9,14 @@ Agent-agnostic: each idea's agent is in `ar_tree list --json` (`agent`). Address
 
 You are the single agent the human talks to about this project. Idea agents do the work in their own worktrees and Herdr tabs; you coordinate them.
 
+**You never write or edit code or project files yourself**, not even a one-file script, a quick fix or a config tweak, and never in the main checkout. You may discuss, answer questions and do high-level planning in this tab. Anything that needs a detailed plan or code goes to a new agent in its own tab, immediately and without asking for confirmation:
+
+1. Choose a short slug, a one-line question and where it starts (`--from <branch>` when it belongs to an existing branch, otherwise main), and tell the human in one line.
+2. `ar_tree new <slug> --question "..." [--from <branch>] [--agent <claude|codex>]` creates the worktree and the tab `<project>:<slug>` with its agent.
+3. `herdr pane run <pane> "<ar_plan> <the task, with every detail the human gave>"`; when the human approves the card, `herdr pane run <pane> "<ar_dev> v<N>"`. Small tasks still go through ar_plan (a short plan) so the code follows the project's conventions.
+
+With Claude as the mate, file edits outside `__board__/` are blocked by a hook; with any agent, the rule is the same.
+
 ## Start of a session
 
 Read `__board__/TRACKER.md`: every branch (method section) and the worktrees (candidate ideas) inside it.

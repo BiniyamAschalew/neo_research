@@ -45,7 +45,7 @@ You -> mate:  failed  -> "close it": only the summary reaches main
               mature  -> "merge b1":  ar_merge  = compact + review + one squash commit into main
 ```
 
-The mate keeps its rules in the agent's standing instructions (stays the mate in long sessions), runs with Claude auto mode / Codex "Approve for me" (`--ask` for normal prompts), never edits code itself, and asks you before anything irreversible: full runs, close/branch/merge/drop, new branches, pushes. `__board__/TRACKER.md` on main always shows every branch and worktree.
+The mate keeps its rules in the agent's standing instructions (stays the mate in long sessions), runs with Claude auto mode / Codex "Approve for me" (`--ask` for normal prompts), never edits code itself (any coding task goes straight to a new worktree tab running `ar_plan` then `ar_dev`; for a Claude mate a hook blocks edits outside `__board__/`), and asks you before anything irreversible: full runs, close/branch/merge/drop, new branches, pushes. `__board__/TRACKER.md` on main always shows every branch and worktree.
 
 ## Skills
 

@@ -6,6 +6,7 @@
     prefix       how skills are invoked in a prompt: /ar_plan (Claude) or $ar_plan (Codex)
     rules        extra arguments that make a file part of the session's standing instructions,
                  so they survive long sessions (used by the ar_mate launcher)
+    guard        extra arguments that stop the mate from editing files outside __board__/ (Claude hook)
     mate         default permission flags for the mate session (ar_mate --ask drops them):
                  Claude auto mode (a classifier approves safe actions, asks for risky ones);
                  Codex "Approve for me" (workspace-write sandbox, approvals sent to automatic review)
@@ -24,6 +25,9 @@ AGENTS = {
         "prefix": "/",
         "rules": lambda path: ["--append-system-prompt-file", str(path)],
         "mate": ["--permission-mode", "auto"],
+        "guard": lambda script: ["--settings", json.dumps({"hooks": {"PreToolUse": [{
+            "matcher": "Edit|Write|NotebookEdit|MultiEdit",
+            "hooks": [{"type": "command", "command": f"python3 {script}"}]}]}})],
     },
     "codex": {
         "interactive": ["codex"],
@@ -45,7 +49,7 @@ def spec(name=None):
         return AGENTS[name]
     if not shutil.which(name):
         raise SystemExit(f"Unknown agent '{name}': not installed. Known: {', '.join(AGENTS)}")
-    return {"interactive": [name], "headless": None, "review": None, "prefix": "/", "rules": None, "mate": []}
+    return {"interactive": [name], "headless": None, "review": None, "prefix": "/", "rules": None, "mate": [], "guard": None}
 
 
 def other(name):
