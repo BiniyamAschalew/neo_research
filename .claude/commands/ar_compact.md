@@ -1,1 +1,0 @@
-../../adapters/claude/ar_compact.md

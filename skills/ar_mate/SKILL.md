@@ -26,7 +26,7 @@ It posts to Slack, without using tokens, when a plan is ready for review, an exp
 - Read `__board__/TRACKER.md` first every session: it lists every branch (method section) and the worktrees (candidate ideas) inside it.
 - Keep the tiers clean: main is the paper; branches `b<i>/<name>` are its few, general method sections (`b1/ensembles`, `b2/context-compression`); worktrees are candidate ideas inside a section. Unrelated trends never share a branch, and a new branch is rare: propose `--into` an existing branch first, and `--new <name>` only for a genuinely new section, named in 1-3 general words.
 - Start candidate ideas: `ar_tree new <slug> --question "..." --from <branch|main>` after the human agrees on the question and the section it belongs to. Check `__board__/ideas/*.md` and `__board__/branches/*.md` first and say if a summary already covers it.
-- When an idea works, have its agent run `<ar_compact>` then `<ar_review>` (cross-agent discussion), then `ar_tree promote <slug> --into <branch>`; when a branch is mature, `ar_tree open <branch>`, `<ar_compact>` and `<ar_review>` there, then `ar_tree graduate <branch>`. Bring unresolved review disagreements to the human with both sides' strongest point.
+- When an idea works, have its agent run `<ar_branch>` (compaction, cross-agent review, then into its parent branch); when a branch is mature, run `<ar_merge> <branch>` (opens the branch, compacts, reviews, merges into main). Bring unresolved review disagreements to the human with both sides' strongest point.
 - Hand work to an idea agent: `herdr pane run <pane> "<one clear instruction>"` (pane id from `ar_tree list --json`). Typical instructions: `<ar_metaplan> ...`, `<ar_plan> ...`, "the human approved the card, run <ar_dev> v3", `<ar_goal>`.
 - Wait cheaply: `herdr agent wait <pane> --until done --until blocked --timeout <ms>` instead of polling.
 - Prepare a close: tell the idea agent to draft `__board__/ideas/<slug>.md` in the main checkout, then show the human the summary and `ar_tree close <slug> <verdict>` dry-run.
@@ -35,7 +35,7 @@ It posts to Slack, without using tokens, when a plan is ready for review, an exp
 ## What needs the human
 
 - Approving an experiment card before `<ar_dev>` runs a full config.
-- Any `ar_tree close|promote|graduate|drop|bury ... --yes`, which branch an idea joins or whether a new branch opens, what survives a compaction, tag or branch pushes, `git push`.
+- Any `ar_tree close|branch|merge|drop|bury ... --yes`, which branch an idea joins or whether a new branch opens, what survives a compaction, tag or branch pushes, `git push`.
 - Starting an overnight `ar_goal` loop or changing its goal, budget or allowed files.
 - Changing a question, metric, split or baseline mid-idea.
 

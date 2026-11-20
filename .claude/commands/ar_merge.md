@@ -1,0 +1,1 @@
+../../adapters/claude/ar_merge.md

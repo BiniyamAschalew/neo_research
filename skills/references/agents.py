@@ -2,7 +2,7 @@
 
     interactive  command for a tab you talk to
     headless     one-shot command that edits files and exits (ar_goal iterations)
-    review       one-shot, read-only command for an independent reviewer (ar_review)
+    review       one-shot, read-only command for an independent reviewer (references/review.py)
     prefix       how skills are invoked in a prompt: /ar_plan (Claude) or $ar_plan (Codex)
     rules        extra arguments that make a file part of the session's standing instructions,
                  so they survive long sessions (used by the ar_mate launcher)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Cross-agent review round before ar_tree promote / graduate.
+"""Cross-agent review round for ar_branch (idea -> branch) and ar_merge (branch -> main).
 
-    python review.py promote [--reviewer codex] [--note "what changed since last round"]
-    python review.py graduate
+    python .agents/skills/references/review.py branch [--reviewer codex]
+    python .agents/skills/references/review.py merge
 
 Runs the other agent family read-only on this worktree, appends its critique as a new round
 to __board__/REVIEW.md, and prints the verdict (ACCEPT | REVISE | REJECT). The author answers
@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 HERE = Path(__file__).resolve()
-SKILLS = HERE.parents[2]
+SKILLS = HERE.parents[1]
 
 
 def load(name, path):
@@ -37,8 +37,8 @@ VERDICT = re.compile(r"VERDICT:\s*(ACCEPT|REVISE|REJECT)", re.I)
 MAX_ROUNDS = 3
 
 QUESTIONS = {
-    "promote": "Should this candidate idea become part of the branch {target} (a method section)?",
-    "graduate": "Should this branch (a method section) become part of {target}, the paper-quality branch?",
+    "branch": "Should this candidate idea become part of the branch {target} (a method section)?",
+    "merge": "Should this branch (a method section) become part of {target}, the paper-quality branch?",
 }
 
 PROMPT = """You are an independent reviewer ({reviewer}) of research work written by another agent ({author}).
@@ -78,8 +78,8 @@ def rounds(text):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("stage", choices=["promote", "graduate"])
-    parser.add_argument("--target", help="Branch it moves into (default: main for graduate, the base for promote)")
+    parser.add_argument("stage", choices=["branch", "merge"])
+    parser.add_argument("--target", help="Branch it moves into (default: main for merge, the parent branch for branch)")
     parser.add_argument("--reviewer", help="Reviewer agent (default: a different family than the author)")
     parser.add_argument("--author", help="Author agent (default: from the ideas registry)")
     parser.add_argument("--max-rounds", type=int, default=MAX_ROUNDS)
@@ -94,12 +94,12 @@ def main():
     command = AGENTS.spec(reviewer)["review"]
     if not command:
         raise SystemExit(f"No read-only review command known for '{reviewer}'.")
-    text = REVIEW.read_text() if REVIEW.exists() else "# Review\n\nCross-agent review before promote/graduate (ar_review).\n"
+    text = REVIEW.read_text() if REVIEW.exists() else "# Review\n\nCross-agent review for ar_branch / ar_merge.\n"
     done = rounds(text)
     if done >= args.max_rounds:
         raise SystemExit(f"{done} rounds already; the human decides now (record the decision in {REVIEW}).")
     base = (row or {}).get("base", "").split("@")[0] or "main"
-    target = args.target or ("main" if args.stage == "graduate" else (base if re.match(r"b\d+/", base) else "a new branch"))
+    target = args.target or ("main" if args.stage == "merge" else (base if re.match(r"b\d+/", base) else "a new branch"))
     head = git("rev-parse", "--short", "HEAD")
     prompt = PROMPT.format(reviewer=reviewer, author=author, question=QUESTIONS[args.stage].format(target=target),
                            tree=Path.cwd(), branch=git("rev-parse", "--abbrev-ref", "HEAD"), base=base,
@@ -117,7 +117,7 @@ def main():
                       f"author: {author} | commit: {head} | {stamp}\n\n{response}\n\n**Verdict**: {verdict}\n\n"
                       "### Author response\n\n[Reply to each blocking finding: fixed (commit) or why not.]\n")
     print(f"Round {done + 1}: {verdict} (reviewer {reviewer}). Answer in {REVIEW}, commit, "
-          + ("then promote/graduate." if verdict == "ACCEPT" else "then run the next round."))
+          + ("then run ar_tree branch / merge." if verdict == "ACCEPT" else "then run the next round."))
     return 0
 
 
