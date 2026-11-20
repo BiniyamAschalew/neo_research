@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -136,6 +137,28 @@ def mark_sent(path):
         handle.write(_key(path) + "\n")
 
 
+SENT_LOG = LEDGER.parent / "slack_sent.tsv"
+MAX_PER_HOUR = int(os.environ.get("AR_SLACK_MAX_PER_HOUR", "3"))
+
+
+def throttled(webhook, message):
+    """Hard guard against floods: per webhook, never the same message twice in a day, at most MAX_PER_HOUR an hour."""
+    import hashlib
+    hook = hashlib.sha1(webhook.encode()).hexdigest()[:12]
+    digest = hashlib.sha1(message.encode()).hexdigest()[:12]
+    now = time.time()
+    rows = [line.split("\t") for line in SENT_LOG.read_text().splitlines()] if SENT_LOG.exists() else []
+    rows = [r for r in rows if len(r) == 3 and now - float(r[0]) < 86400]
+    mine = [r for r in rows if r[1] == hook]
+    if any(r[2] == digest for r in mine):
+        return "duplicate of a message sent in the last 24 h"
+    if sum(now - float(r[0]) < 3600 for r in mine) >= MAX_PER_HOUR:
+        return f"over {MAX_PER_HOUR} messages this hour (AR_SLACK_MAX_PER_HOUR)"
+    SENT_LOG.parent.mkdir(parents=True, exist_ok=True)
+    SENT_LOG.write_text("".join("\t".join(r) + "\n" for r in [*rows, [f"{now:.0f}", hook, digest]]))
+    return ""
+
+
 def notify(title, text, keys=None, dry_run=False):
     keys = keys or load_keys()
     message = f"*{title}*\n{text}".strip()
@@ -147,6 +170,8 @@ def notify(title, text, keys=None, dry_run=False):
         return {"status": "dry_run", "message": message}
     if not keys["SLACK_WEBHOOK_URL"]:
         return {"status": "skipped", "reason": f"no SLACK_WEBHOOK_URL in {keys.get('_file', PROJECT_ENV)}"}
+    if reason := throttled(keys["SLACK_WEBHOOK_URL"], message):
+        return {"status": "suppressed", "reason": reason}
     try:
         request = urllib.request.Request(keys["SLACK_WEBHOOK_URL"], json.dumps({"text": message}).encode(),
                                          {"Content-Type": "application/json"})

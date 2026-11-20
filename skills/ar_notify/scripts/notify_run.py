@@ -5,7 +5,8 @@
     python .agents/skills/ar_notify/scripts/notify_run.py --notify --name "v3 full" -- python persist_notify.py run -- python run.py
 
 Inside an ar_plan/ar_dev task the runs stay quiet: the task sends one Slack message, its final report.
-Use --notify only for a run that outlives the task (launched in the background and left running).
+Use --notify only for a run that outlives the task (launched in the background and left running); it posts
+only if the run completes (exit 0), never for errors or Ctrl+C.
 
 Output streams to the terminal as usual; the wrapper exits with the command's exit code.
 If a report under __board__/reports/ was written during the run, its card is included;
@@ -96,7 +97,7 @@ def main():
     finally:
         if pending.strip():
             tail.append(pending.decode(errors="replace").rstrip()[:200])
-        if args.notify:
+        if args.notify and code == 0:  # completed runs only; failures stay in the terminal and logs
             report = new_report(args.report_glob, started)
             title, text = message(args.name, shlex.join(command), code, time.time() - started, list(tail), report)
             result = SLACK.notify(title, text)

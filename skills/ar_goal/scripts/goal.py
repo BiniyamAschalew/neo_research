@@ -255,7 +255,8 @@ def finish(cfg, best, rows, reason, started, final_test=True):
             f"Sealed test: {'not run' if test_value is None else f'{test_value:.4g}'}\n" + "\n".join(table)
             + f"\nSummary: `{summary}`")
     project = Path(git("worktree", "list", "--porcelain").splitlines()[0].split(" ", 1)[1]).name
-    notify(f"ar_goal {project}/{git('rev-parse', '--abbrev-ref', 'HEAD')}: {reason}", text)
+    if final_test:  # completed loops only; crashes and Ctrl+C stay out of Slack (see summary.md)
+        notify(f"ar_goal {project}/{git('rev-parse', '--abbrev-ref', 'HEAD')}: {reason}", text)
     if TRACKER:
         TRACKER.finish(rows, best, test_value, reason)
     print(summary.read_text())

@@ -41,7 +41,7 @@ class AgentTests(unittest.TestCase):
                 (fake / name).chmod(0o755)
             env = {**os.environ, "PATH": f"{fake}:{os.environ['PATH']}"}
             for agent, permission, first in (("claude", ["--permission-mode", "auto", "--settings"], "/ar_mate status"),
-                                             ("codex", ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"', "-c", 'sandbox_mode="read-only"'],
+                                             ("codex", ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"', "-c", "hide_agent_reasoning=true"],
                                               "$ar_mate status")):
                 out = subprocess.run([str(NEO / "ar_mate"), agent, "--no-watch", "--", "--model", "x"], cwd=project,
                                      env=env, text=True, capture_output=True, check=True).stdout

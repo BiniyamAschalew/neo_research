@@ -70,8 +70,20 @@ class SlackNotifyTests(unittest.TestCase):
                                         cwd=temp, env=env, text=True, capture_output=True)
                 self.assertEqual(result.returncode, code)
                 self.assertIn("epoch 1 loss 0.5", result.stdout)
-                self.assertIn("[ar_notify]", result.stderr)
-                self.assertIn('"status": "skipped"', result.stderr)
+                if code == 0:                                                    # completed: notifies
+                    self.assertIn('"status": "skipped"', result.stderr)
+                else:                                                            # errors never reach Slack
+                    self.assertNotIn("[ar_notify]", result.stderr)
+
+    def test_flood_guard(self):
+        with tempfile.TemporaryDirectory() as temp:
+            SLACK.SENT_LOG = Path(temp) / "sent.tsv"
+            self.assertEqual(SLACK.throttled("hook", "done 1"), "")
+            self.assertIn("duplicate", SLACK.throttled("hook", "done 1"))
+            for i in range(2, SLACK.MAX_PER_HOUR + 1):
+                self.assertEqual(SLACK.throttled("hook", f"done {i}"), "")
+            self.assertIn("this hour", SLACK.throttled("hook", "one too many"))
+            self.assertEqual(SLACK.throttled("other-project", "done 1"), "")   # per webhook
 
     def test_run_message_content(self):
         spec = importlib.util.spec_from_file_location("notify_run", SCRIPTS / "notify_run.py")

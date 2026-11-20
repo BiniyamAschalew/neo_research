@@ -37,7 +37,7 @@ AGENTS = {
         "prefix": "$",
         "rules": lambda path: ["-c", "developer_instructions=" + json.dumps(Path(path).read_text())],
         "mate": ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"'],
-        "guard": lambda policy: ["-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="on-request"',
+        "guard": lambda policy: ["-c", "hide_agent_reasoning=true", "-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="on-request"',
                                  "-c", "auto_review.policy=" + json.dumps(Path(policy).read_text())],
     },
 }

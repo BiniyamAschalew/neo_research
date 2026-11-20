@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-"""First-mate watcher: posts to Slack when something in an idea needs or deserves your attention.
+"""First-mate watcher: logs what changed in each idea to the mate's inbox. Never posts to Slack.
 
     python .agents/skills/ar_mate/scripts/mate_watch.py            # run in its own Herdr tab (or nohup)
     python .agents/skills/ar_mate/scripts/mate_watch.py --once     # one check, then exit
     python .agents/skills/ar_mate/scripts/mate_watch.py --ensure   # start in the background unless already running
 
-Every --interval seconds it checks each open idea worktree. Slack gets only what a task's own final
-report does not cover: an idea agent turning blocked -> "needs you" (Herdr state, best effort).
-A task (ar_metaplan -> ar_plan -> ar_dev) sends exactly one Slack message itself, its final report; an
-ar_goal loop sends its own summary. Costs no tokens.
-Every event (plus an agent finishing its turn) is also appended to an inbox in the git common
-dir (.git/ar_mate_inbox.md), which the mate reads with `mate_status.py --inbox` instead of polling agents.
+Every --interval seconds it appends to .git/ar_mate_inbox.md (read by `mate_status.py --inbox`): a new plan,
+a new report, a finished ar_goal loop, an idea agent blocked or finished. Costs no tokens. Slack only ever
+gets completed work: a task's final report (ar_dev) and a completed ar_goal loop.
 """
 
 import argparse
@@ -66,7 +63,7 @@ def to_inbox(root, slug, title, path=None):
 
 
 def check(root, state, send=True):
-    """Return the Slack messages for changes since the last check; log every change to the inbox."""
+    """Log changes since the last check to the inbox; return them as (path, title) pairs."""
     out = []
     for row in AR_TREE.read_rows(root):
         tree = Path(row["worktree"]) if row["worktree"] else None
@@ -76,28 +73,23 @@ def check(root, state, send=True):
             key = str(path)
             mtime = path.stat().st_mtime_ns
             if state["files"].get(key) == mtime or (kind == "plan" and key in state["files"]):
-                state["files"][key] = mtime  # plans are announced once; your edits don't re-notify
+                state["files"][key] = mtime  # plans are logged once; edits don't re-log
                 continue
             first_sight = key not in state["files"] and not state["started"]
             state["files"][key] = mtime
             if first_sight:
                 continue
-            title, text = message(root.name, row["slug"], kind, path)
-            to_inbox(root, row["slug"], title.split(": ", 1)[-1], path.relative_to(tree))
+            title = message(root.name, row["slug"], kind, path)[0].split(": ", 1)[-1]
+            to_inbox(root, row["slug"], title, path.relative_to(tree))
+            out.append((path, title))
         agent = STATUS.agent_state(row["pane"])
         previous = state["agents"].get(row["slug"])
         state["agents"][row["slug"]] = agent
         if agent in ("blocked", "done") and previous not in (None, agent):
-            to_inbox(root, row["slug"], "agent needs you" if agent == "blocked" else "agent finished its turn")
-        if agent == "blocked" and previous not in (None, "blocked"):
-            out.append((None, f"{root.name}/{row['slug']}: agent needs you", f"Open Herdr tab `{root.name}:{row['slug']}`."))
+            title = "agent needs you" if agent == "blocked" else "agent finished its turn"
+            to_inbox(root, row["slug"], title)
+            out.append((None, title))
     state["started"] = True
-    if send:
-        for path, title, text in out:
-            result = SLACK.notify(title, text)
-            if path and result["status"] == "sent":
-                SLACK.mark_sent(path)
-            print(json.dumps({"title": title, **result}), flush=True)
     return out
 
 

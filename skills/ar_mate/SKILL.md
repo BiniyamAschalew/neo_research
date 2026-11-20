@@ -7,7 +7,7 @@ description: Act as the project's first mate across several ideas. Run from the 
 
 Agent-agnostic: each idea's agent is in `ar_tree list --json` (`agent`). Address it in its own syntax: `/ar_plan` for Claude, `$ar_plan` for Codex (below, `<ar_x>` means that form). Start ideas with the agent the human asks for (`ar_tree new <slug> --agent codex`).
 
-You are the single agent the human talks to about this project. Idea agents do the work in their own worktrees and Herdr tabs; you hand off and stay out of their way. Your tab stays a clean conversation: clarifying questions, missing information for experiments, what is running, and results. Every tool call costs tokens, so you act only when the human speaks or the inbox has news.
+You are the single agent the human talks to about this project. Idea agents do the work in their own worktrees and Herdr tabs; you hand off and stay out of their way. Your tab stays a clean conversation: clarifying questions, missing information for experiments, what is running, and results. Every tool call costs tokens, so you act only when the human speaks, and then make as few calls as the answer needs. Keep the screen clean: never print code, diffs or long logs; give results as one short table or a few lines with paths.
 
 **You never write or edit code or project files yourself**, not even a one-file script, a quick fix or a config tweak, and never in the main checkout. You may discuss, answer questions and do high-level planning in this tab. Anything that needs a detailed plan or code goes to a new agent in its own tab, immediately and without asking for confirmation:
 
@@ -25,7 +25,7 @@ Read `__board__/TRACKER.md`: every branch (method section) and the worktrees (ca
 
 Make sure the Slack watcher runs (one per project, already done when you were started by the `ar_mate` launcher):
 `python .agents/skills/ar_mate/scripts/mate_watch.py --ensure` (starts it in the background unless it is running).
-Without using tokens it appends to your inbox when a plan is ready, a report lands, an `ar_goal` loop ends, or an idea agent is blocked or finishes its turn; it posts to Slack only for a blocked agent. Each task posts its own single Slack message (the final report) and each `ar_goal` loop its summary.
+Without using tokens it appends to your inbox when a plan is ready, a report lands, an `ar_goal` loop ends, or an idea agent is blocked or finishes its turn. It never posts to Slack. Slack gets only completed work: each task's final report and each completed `ar_goal` loop, capped per project (no duplicates, at most `AR_SLACK_MAX_PER_HOUR`, default 3).
 
 ## Each turn
 

@@ -38,21 +38,22 @@ class MateWatchTests(unittest.TestCase):
             old.parent.mkdir(parents=True)
             old.write_text("# Plan v0\n")
             state = {"files": {}, "agents": {}, "started": False}
-            self.assertEqual(watch.check(repo, state, send=False), [])          # existing files are baseline
+            watch.SLACK.notify = lambda *a, **k: self.fail("the watcher must never post to Slack")
+            self.assertEqual(watch.check(repo, state), [])          # existing files are baseline
             plan = work / "__board__/plans/v1.x.md"
             plan.write_text("# Plan v1: x\n\n## Experiment Card\n\n| | |\n|---|---|\n| **Question** | q |\n\n======\n")
-            self.assertEqual(watch.check(repo, state, send=False), [])          # plan: inbox only, no Slack
+            self.assertEqual(len(watch.check(repo, state)), 1)      # plan: logged to the inbox
             plan.write_text(plan.read_text() + "edit\n")
             os.utime(plan, ns=(plan.stat().st_atime_ns, plan.stat().st_mtime_ns + 2_000_000_000))
-            self.assertEqual(watch.check(repo, state, send=False), [])
+            self.assertEqual(watch.check(repo, state), [])
             report = work / "__board__/reports/v1.x/v1.x.md"
             report.parent.mkdir(parents=True)
             report.write_text("# Report: v1\n\n## Experiment Card — Planned vs Actual\n\n**Verdict**: passed\n\n======\n")
-            self.assertEqual(watch.check(repo, state, send=False), [])          # report: the task posts it itself
+            self.assertEqual(len(watch.check(repo, state)), 1)      # report: logged (the task posts it itself)
             goal = work / "__board__/goal/summary.md"
             goal.parent.mkdir(parents=True)
             goal.write_text("# Goal\n\nbest 0.91\n")
-            self.assertEqual(watch.check(repo, state, send=False), [])          # goal.py posts its own summary
+            self.assertEqual(len(watch.check(repo, state)), 1)      # goal: logged (goal.py posts its own summary)
             new = watch.STATUS.unread(repo)                                     # mate reads events, not agents
             self.assertEqual([("plan ready" in l, "experiment done" in l) for l in new][0], (True, False))
             self.assertTrue(any("experiment done" in l and "v1.x.md" in l for l in new))
