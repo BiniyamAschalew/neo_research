@@ -67,13 +67,32 @@ class ArTreeTests(unittest.TestCase):
         self.assertEqual((Path(os.environ["AR_ARCHIVE"]) / "proj/try-a/local/preds.npy").read_text(), "raw")
         self.assertIn("| try-a | dead |", (self.repo / "__board__/ideas.md").read_text())
 
-    def test_win_merges_code_not_board(self):
-        self.start("try-b")
+    def test_win_merges_code_and_results_not_bookkeeping(self):
+        work = self.start("try-b")
+        (self.repo / "other.py").write_text("main moved on\n")  # main changed after the idea branched
+        sh("git", "add", "other.py", cwd=self.repo)
+        sh("git", "commit", "-q", "-m", "main work", cwd=self.repo)
         self.fill_summary("try-b")
         self.tree("close", "try-b", "win", "--yes")
         self.assertEqual((self.repo / "model.py").read_text(), "x = 2\n")
-        self.assertFalse((self.repo / "__board__/reports/r.md").exists())
+        self.assertEqual((self.repo / "other.py").read_text(), "main moved on\n")
+        self.assertEqual((self.repo / "__board__/reports/r.md").read_text(), "big report\n")
+        self.assertEqual((self.repo / "local/preds.npy").read_text(), "raw")
+        self.assertFalse((self.repo / "__board__/IDEA.md").exists())
         self.assertEqual(sh("git", "status", "--porcelain", cwd=self.repo), "")
+        self.assertIn("| try-b | merged |", (self.repo / "__board__/ideas.md").read_text())
+
+    def test_win_conflict_changes_nothing(self):
+        work = self.start("try-d")
+        (self.repo / "model.py").write_text("x = 9\n")  # same file changed on main
+        sh("git", "commit", "-q", "-am", "main edit", cwd=self.repo)
+        self.fill_summary("try-d")
+        result = self.tree("close", "try-d", "win", "--yes", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("model.py", result.stdout + result.stderr)
+        self.assertEqual((self.repo / "model.py").read_text(), "x = 9\n")
+        self.assertTrue(work.exists())
+        self.assertNotIn("archive/try-d", sh("git", "tag", cwd=self.repo))
 
     def test_dirty_worktree_blocks_close(self):
         work = self.start("try-c")

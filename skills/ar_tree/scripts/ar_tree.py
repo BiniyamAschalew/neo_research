@@ -235,7 +235,7 @@ def unique(path):
     return path if not path.exists() else path.with_name(f"{path.name}-{datetime.now():%Y%m%dT%H%M%S}")
 
 
-def archive_ignored(tree, dest, paths):
+def archive_ignored(tree, dest, paths):  # used by bury
     for relative in paths:
         source = tree / relative
         if source.is_symlink():
@@ -251,16 +251,56 @@ def require_on_base(root, base):
         raise SystemExit(f"Main checkout {root} is on '{current}'; check out '{base}' first so the summary lands there.")
 
 
-def win_files(root, base, branch):
-    """Code/config changed on the idea branch, excluding board state (plans, reports, notes)."""
-    out = git("diff", "--name-status", "--no-renames", f"{base}...{branch}", cwd=root)
-    keep, drop = [], []
-    for line in out.splitlines():
-        status, path = line.split("\t", 1)
-        if path.startswith("__board__/"):
+IDEA_ONLY = ("__board__/IDEA.md", "__board__/STATUS.md", "__board__/goal")  # never merged into main
+
+
+def idea_only(path):
+    return any(path == p or path.startswith(p + "/") for p in IDEA_ONLY)
+
+
+def win_preview(root, base, branch):
+    """Files a win brings to main (code, configs, plans, reports, notes) and likely conflicts."""
+    out = git("diff", "--name-only", "--no-renames", f"{base}...{branch}", cwd=root)
+    files = [f for f in out.splitlines() if f and not idea_only(f)]
+    fork = git("merge-base", base, branch, cwd=root)
+    changed_on_main = set(git("diff", "--name-only", fork, base, cwd=root).splitlines())
+    return files, sorted(changed_on_main & set(files))
+
+
+def squash_merge(root, branch):
+    """Stage the idea branch on main (real merge, so later main changes are kept); stop on conflicts."""
+    dirty = [l for l in git("status", "--porcelain", "--untracked-files=no", cwd=root).splitlines()
+             if not l[3:].startswith(("__board__/ideas.md", "__board__/ideas/"))]  # our own registry edits
+    if dirty:
+        raise SystemExit(f"Main checkout {root} has uncommitted changes; commit or stash them before a win.")
+    merged = subprocess.run(["git", "merge", "--squash", branch], cwd=root, text=True, capture_output=True)
+    if merged.returncode:
+        conflicts = git("diff", "--name-only", "--diff-filter=U", cwd=root, check=False)
+        git("reset", "-q", "--merge", cwd=root, check=False)
+        raise SystemExit(f"Merge conflicts, nothing changed on main:\n{conflicts or merged.stderr.strip()}\n"
+                         f"In the idea worktree run `git merge {git('rev-parse', '--abbrev-ref', 'HEAD', cwd=root)}`, "
+                         "resolve, commit, then rerun close.")
+    for path in IDEA_ONLY:  # idea bookkeeping stays with the idea; main keeps its own versions
+        if git("ls-tree", "HEAD", "--", path, cwd=root):
+            git("restore", "--source=HEAD", "--staged", "--worktree", "--", path, cwd=root, check=False)
+        else:
+            git("rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", path, cwd=root, check=False)
+            target = root / path
+            if target.is_dir():
+                shutil.rmtree(target)
+            elif target.exists():
+                target.unlink()
+
+
+def move_raw(tree, paths, archive, main=None):
+    """Git-ignored results: into main at the same path for a win (when free), else to the archive."""
+    for relative in paths:
+        source = tree / relative
+        if source.is_symlink() or not source.exists():
             continue
-        (drop if status == "D" else keep).append(path)
-    return keep, drop
+        target = main / relative if main and not (main / relative).exists() else archive / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(target))
 
 
 def cmd_close(args):
@@ -274,19 +314,20 @@ def cmd_close(args):
     has_tree = bool(tree and tree.exists())
     if has_tree and git("status", "--porcelain", cwd=tree):
         raise SystemExit(f"{tree} has uncommitted changes; commit or discard them first.")
+    win = args.verdict == "win"
     summary = ensure_summary(root, row, args.verdict)
     problems = summary_problems(summary)
     raw = ignored_paths(tree) if has_tree else []
     dest = unique(ARCHIVE / root.name / args.slug)
-    keep, drop = win_files(root, base, row["branch"]) if args.verdict == "win" else ([], [])
+    files, overlap = win_preview(root, base, row["branch"]) if win else ([], [])
     plan = {
         "verdict": args.verdict,
         "tag": f"archive/{args.slug} -> {row['branch']}",
         "summary": str(summary),
         "summary_problems": problems,
-        "move_raw_results_to": str(dest) if raw else None,
-        "raw_paths": raw,
-        "merge_to_main": {"checkout": keep, "delete": drop} if args.verdict == "win" else None,
+        "merge_to_main": {"files": files, "also_changed_on_main": overlap,
+                          "kept_with_idea": list(IDEA_ONLY)} if win else None,
+        "raw_results": ({"to_main_same_path": raw, "else_to": str(dest)} if win else {"to": str(dest), "paths": raw}) if raw else None,
         "remove_worktree": str(tree) if has_tree else None,
         "delete_branch": args.verdict != "parked",
     }
@@ -295,28 +336,28 @@ def cmd_close(args):
         print(json.dumps(plan, indent=2))
         return 1 if problems and args.yes else 0
     require_on_base(root, base)
+    if win:
+        squash_merge(root, row["branch"])  # raises before anything else changes
     if not git("tag", "--list", f"archive/{args.slug}", cwd=root):
         git("tag", f"archive/{args.slug}", row["branch"], cwd=root)
     if raw:
-        archive_ignored(tree, dest, raw)
-    paths = [str(summary.relative_to(root)), REGISTRY]
-    if keep:
-        git("checkout", row["branch"], "--", *keep, cwd=root)
-        paths += keep
-    if drop:
-        git("rm", "-q", "--", *drop, cwd=root)
-        paths += drop
+        move_raw(tree, raw, dest, main=root if win else None)
     tab = row["tab"]
     row.update(status={"dead": "dead", "parked": "parked", "win": "merged"}[args.verdict],
                closed=date.today().isoformat(), worktree="", tab="", pane="")
     write_rows(root, rows)
-    git("add", "--", *[p for p in paths if p not in drop], cwd=root)
-    git("commit", "-q", "-m", f"ideas: close {args.slug} ({args.verdict})", "--", *paths, cwd=root)
-    # Only after the summary is safely on main: remove the worktree, tab and branch.
+    paths = [str(summary.relative_to(root)), REGISTRY]
+    git("add", "--", *paths, cwd=root)
+    message = f"ideas: close {args.slug} ({args.verdict})"
+    if win:
+        git("commit", "-q", "-m", f"{message}\n\nSquash-merged {row['branch']}: code, configs, plans and reports.", cwd=root)
+    else:
+        git("commit", "-q", "-m", message, "--", *paths, cwd=root)
+    # Only after main has the commit: remove the worktree, tab and branch.
     if has_tree:
         removed = subprocess.run(["git", "worktree", "remove", str(tree)], cwd=root, text=True, capture_output=True)
         if removed.returncode:
-            plan["warning"] = f"summary committed but worktree not removed: {removed.stderr.strip()}"
+            plan["warning"] = f"committed but worktree not removed: {removed.stderr.strip()}"
     if tab:
         herdr("tab", "close", tab)
     if args.verdict != "parked" and "warning" not in plan:

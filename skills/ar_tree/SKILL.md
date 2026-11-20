@@ -1,6 +1,6 @@
 ---
 name: ar_tree
-description: Manage one git worktree per research idea. Start an idea in its own branch, worktree and Herdr tab; close it as dead, parked or win so that only a short summary (approach, main results, why it failed, when to retry) returns to main while code and results stay out. Also buries old experiments already on main.
+description: Manage one git worktree per research idea. Start an idea in its own branch, worktree and Herdr tab; close it as dead or parked so that only a short summary (approach, main results, why it failed, when to retry) returns to main, or as win so its code, configs, plans and reports are merged into main with the summary. Also buries old experiments already on main.
 ---
 
 # AR Tree
@@ -36,7 +36,7 @@ Read every `__board__/ideas/*.md` in the main checkout. Do not propose an approa
 3. Fill `__board__/ideas/<slug>.md` from the idea's reports: question, approach (2-4 lines), setup, at most 5 main result rows with numbers versus baseline, why it failed (evidence, not guesses), don't retry unless, reusable pieces. Keep it under 40 lines.
 4. Show the human the summary and dry-run plan; run `--yes` only after their approval.
 
-On `--yes` the tool: tags `archive/<slug>` (code stays recoverable, never on main), moves git-ignored raw results to `~/ar_archive/<project>/<slug>/`, for `win` copies only non-`__board__/` code/config changes onto main, commits only the summary, registry and those files, removes the worktree and Herdr tab, and deletes the branch (kept for `parked`). Main must be checked out on its base branch. Pushing the tag (`git push origin archive/<slug>`) needs explicit human instruction.
+On `--yes` the tool: tags `archive/<slug>` (the full branch stays recoverable). For `dead`/`parked` it commits only the summary and registry to main and moves git-ignored raw results to `~/ar_archive/<project>/<slug>/`. For `win` it squash-merges the branch into main as one commit (code, configs, plans, reports, notes, plus the summary), keeping the idea's `IDEA.md`, `STATUS.md` and `goal/` state out of main and preserving changes main made since the idea started; git-ignored raw results move into main at the same paths. If main changed the same lines, it stops with the conflicting files and changes nothing: run `git merge <base>` in the idea worktree, resolve, commit, and close again. Main must be on its base branch with no uncommitted tracked changes. Then it removes the worktree and Herdr tab, and deletes the branch (kept for `parked`). Main must be checked out on its base branch. Pushing the tag (`git push origin archive/<slug>`) needs explicit human instruction.
 
 ## Burying old main content
 
