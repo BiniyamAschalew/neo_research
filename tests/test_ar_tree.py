@@ -241,3 +241,15 @@ class ArTreeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AgentCommandTests(unittest.TestCase):
+    def test_idea_agents_get_approve_for_me(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("ar_tree_mod", SCRIPT)
+        tree = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tree)
+        self.assertEqual(tree.agent_command("claude")[-2:], ["--permission-mode", "auto"])
+        codex = tree.agent_command("codex")
+        self.assertIn('approvals_reviewer="auto_review"', codex)
+        self.assertNotIn('sandbox_mode="read-only"', codex)        # idea agents write code; only the mate is read-only

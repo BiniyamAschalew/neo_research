@@ -211,6 +211,12 @@ def find(rows, slug):
     raise SystemExit(f"No idea '{slug}' in {REGISTRY}")
 
 
+def agent_command(name):
+    """Interactive agent for an idea/branch tab, with the same "approve for me" permissions as the mate."""
+    agent = AGENTS.spec(name)
+    return [*agent["interactive"], *agent.get("mate", [])]
+
+
 def herdr(*args):
     """Run a Herdr CLI command; return parsed JSON or None when Herdr is unavailable."""
     if not shutil.which("herdr"):
@@ -258,7 +264,7 @@ def cmd_new(args):
             row["tab"] = created.get("result", {}).get("tab", {}).get("tab_id", "")
             row["pane"] = created.get("result", {}).get("root_pane", {}).get("pane_id", "")
             prompt = f"Read __board__/IDEA.md and __board__/ideas/ in the main checkout ({root}) before planning."
-            launch = shlex.join([*AGENTS.spec(args.agent)["interactive"], prompt])
+            launch = shlex.join([*agent_command(args.agent), prompt])
             activate = f"conda activate {shlex.quote(args.env)}" if args.env else SLACK.activation(SLACK.load_keys(SLACK.env_file(root)), interactive=True)
             if activate:
                 launch = f"{activate} && {launch}"
@@ -641,7 +647,7 @@ def cmd_open(args):
             row["tab"] = created.get("result", {}).get("tab", {}).get("tab_id", "")
             row["pane"] = created.get("result", {}).get("root_pane", {}).get("pane_id", "")
             if row["pane"]:
-                herdr("pane", "run", row["pane"], shlex.join(AGENTS.spec(args.agent)["interactive"]))
+                herdr("pane", "run", row["pane"], shlex.join(agent_command(args.agent)))
     write_rows(root, rows)
     print(json.dumps({"opened": str(tree), "branch": target}, indent=2))
     return 0
