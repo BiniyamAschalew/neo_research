@@ -44,6 +44,9 @@ def load_keys(path=None):
                 name, value = line.split("=", 1)
                 keys[name.strip()] = value.strip().strip('"').strip("'")
     keys.setdefault("SLACK_WEBHOOK_URL", "")
+    if not keys.get("TRACKING_URL") and keys.get("WANDB_ENTITY") and keys.get("WANDB_PROJECT"):
+        host = (keys.get("WANDB_BASE_URL") or "https://wandb.ai").rstrip("/")
+        keys["TRACKING_URL"] = f"{host}/{keys['WANDB_ENTITY']}/{keys['WANDB_PROJECT']}"
     keys.setdefault("TRACKING_URL", "")
     return keys
 

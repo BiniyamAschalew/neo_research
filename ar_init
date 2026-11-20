@@ -47,12 +47,14 @@ PROJECT_ENV_TEMPLATE = """# {name}: per-project settings. Never committed (ignor
 # Slack Incoming Webhook for this project's channel (run ends, plans ready, reports).
 SLACK_WEBHOOK_URL=
 
-# Experiment tracking dashboard (W&B / CoreWeave), linked in every Slack message.
-TRACKING_URL=
-
-# Passed to every run launched through notify_run.py / ar_goal, so wandb logs here.
+# W&B: your username or team, and this project's name (created on first run).
+# Passed to every run launched through notify_run.py / ar_goal; the dashboard link
+# https://wandb.ai/<entity>/<project> is added to every Slack message.
 WANDB_ENTITY=
 WANDB_PROJECT=
+
+# Optional: WANDB_BASE_URL=https://<server> for a dedicated/CoreWeave W&B server;
+# TRACKING_URL=<link> to show a different page (saved workspace, report) in Slack.
 """
 PROJECT_TEMPLATE = """# Project: {name}
 

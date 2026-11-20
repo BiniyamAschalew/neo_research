@@ -43,6 +43,8 @@ class SlackNotifyTests(unittest.TestCase):
             self.assertEqual(keys["SLACK_WEBHOOK_URL"], "https://hooks.slack.com/x")
             self.assertEqual(SLACK.tracking_env(keys), {"WANDB_PROJECT": "p"})
             self.assertIn("Tracking: https://wandb.ai/me/p", SLACK.notify("t", "x", keys=keys, dry_run=True)["message"])
+            path.write_text("WANDB_ENTITY=me\nWANDB_PROJECT=p\n")
+            self.assertEqual(SLACK.load_keys(path)["TRACKING_URL"], "https://wandb.ai/me/p")
 
     def test_worktree_uses_main_checkout_settings(self):
         with tempfile.TemporaryDirectory() as temp:

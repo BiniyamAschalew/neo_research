@@ -14,7 +14,7 @@ Then fill in two files in `my-project/__board__/`:
 | File | Committed | Contents |
 |---|---|---|
 | `PROJECT.md` | yes | conda env, data paths, conventions |
-| `project.env` | **never** | `SLACK_WEBHOOK_URL` (this project's channel), `TRACKING_URL` (W&B / CoreWeave dashboard), `WANDB_ENTITY`, `WANDB_PROJECT` |
+| `project.env` | **never** | `SLACK_WEBHOOK_URL` (this project's channel), `WANDB_ENTITY`, `WANDB_PROJECT` (dashboard link derived for Slack; optional `WANDB_BASE_URL`, `TRACKING_URL`) |
 
 Requirements: git, Python 3.8+, Claude Code and/or Codex. Optional: [Herdr](https://herdr.dev), a Slack [Incoming Webhook](https://api.slack.com/messaging/webhooks) per project, W&B, PyYAML (for `ar_goal`).
 

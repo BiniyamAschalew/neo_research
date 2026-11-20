@@ -8,7 +8,7 @@ Claude: `/ar_<name>`. Codex: `$ar_<name>`. Scripts run from the project root; `.
 cd neo_research && ./ar_init ../my-project      # also upgrades an older setup; --dry-run to preview, --untrack for old committed links
 ```
 
-Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conventions) and `__board__/project.env` (never committed: this project's `SLACK_WEBHOOK_URL`, `TRACKING_URL`, `WANDB_ENTITY`, `WANDB_PROJECT`).
+Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conventions) and `__board__/project.env` (never committed: this project's `SLACK_WEBHOOK_URL`, `WANDB_ENTITY`, `WANDB_PROJECT`).
 
 ## Typical flow
 
