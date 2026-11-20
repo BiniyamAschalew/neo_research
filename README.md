@@ -13,7 +13,7 @@ ar_init ../my-project               # once per project per machine (must be a gi
 ```
 
 Then fill in `my-project/__board__/`:  
- 
+  
 | File | Committed | Contents |
 |---|---|---|
 | `PROJECT.md` | yes | data paths, conventions that override the defaults |
