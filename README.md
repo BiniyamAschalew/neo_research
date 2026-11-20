@@ -7,7 +7,7 @@ Shared research workflows for Claude Code and Codex. One checkout serves all you
 ```bash
 git clone https://github.com/BiniyamAschalew/neo_research.git
 cd neo_research && ./install   # once per machine: ar_init and ar_mate become shell commands
-ar_init ../my-project          # once per project per machine; safe to rerun
+ar_init ../my-project          # once per project per machine; safe to rerun (project must be a git repo with a commit)
 ```
 
 Then fill in two files in `my-project/__board__/`: 

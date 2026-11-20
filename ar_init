@@ -245,15 +245,13 @@ def git_exclude(project, dry_run, log, untrack=False):
                    f"(e.g. {tracked[0]}); rerun with --untrack, then commit")
 
 
-def ensure_git(project, dry_run, log):
-    """Idea worktrees (ar_tree) need git: initialize it if missing, and say if a first commit is needed."""
-    is_repo = subprocess.run(["git", "rev-parse", "--git-dir"], cwd=project, capture_output=True).returncode == 0
-    if not is_repo:
-        log.append("git      init (branch main): ideas run in git worktrees")
-        if dry_run:
-            return
-        subprocess.run(["git", "init", "-q"], cwd=project, check=True)
-        subprocess.run(["git", "symbolic-ref", "HEAD", "refs/heads/main"], cwd=project, check=True)
+def require_git(project, log):
+    """Ideas run in git worktrees, so the project must already be a git repository (the user sets it up)."""
+    if subprocess.run(["git", "rev-parse", "--git-dir"], cwd=project, capture_output=True).returncode:
+        raise SystemExit(f"{project} is not a git repository. Set it up first, then rerun ar_init:\n"
+                         f"  cd {project} && git init\n"
+                         "  # add a .gitignore for data, results, checkpoints, wandb/\n"
+                         "  git add -A && git commit -m 'initial'")
     has_commit = subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"], cwd=project, capture_output=True).returncode == 0
     if not has_commit:
         log.append("TODO     no commits yet. Before `ar_tree new`, keep data/results/checkpoints out of git "
@@ -283,7 +281,7 @@ def init(project, dry_run=False, untrack=False):
     branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=NEO, text=True, capture_output=True).stdout.strip()
     setup = Setup(project, dry_run)
     setup.log += [f"project  {project}", f"shared   {NEO} (branch {branch or '?'}; linked projects follow it live)"]
-    ensure_git(project, dry_run, setup.log)
+    require_git(project, setup.log)
     if not (project / "__board__").exists():
         setup.log.append("create   __board__/")
     setup.ensure_project_md()

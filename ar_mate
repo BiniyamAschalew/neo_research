@@ -36,8 +36,7 @@ def main():
     project = Path(args.project).expanduser().resolve()
     listing = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=project, text=True, capture_output=True)
     if listing.returncode:
-        raise SystemExit(f"{project} is not a git repository. Run `ar_init {project}` (it initializes git), "
-                         "make a first commit, then start the mate.")
+        raise SystemExit(f"{project} is not a git repository; run `git init`, make a first commit, then `ar_init`.")
     root = Path(listing.stdout.splitlines()[0].split(" ", 1)[1])
     if root != project:
         print(f"Using the main checkout {root} (the mate never runs inside an idea worktree).")
