@@ -81,7 +81,7 @@ def activation():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     keys = module.load_keys()
-    if keys.get("CONDA_ENV") == os.environ.get("CONDA_DEFAULT_ENV"):
+    if keys.get("CONDA_ENV") and keys["CONDA_ENV"] == os.environ.get("CONDA_DEFAULT_ENV"):
         return ""
     return module.activation(keys)
 

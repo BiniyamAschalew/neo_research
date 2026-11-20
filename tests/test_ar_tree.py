@@ -158,6 +158,14 @@ class ArTreeTests(unittest.TestCase):
         self.assertTrue(work2.exists())
         self.assertEqual(sh("git", "show", "b1/dirx:model.py", cwd=self.repo), "x = 2\n")
 
+    def test_board_leftovers_are_committed_but_dirty_code_blocks_close(self):
+        work = self.start("try-f")
+        (work / "__board__/plans").mkdir(parents=True)
+        (work / "__board__/plans/v1.x.md").write_text("plan")              # an uncommitted plan only
+        self.fill_summary("try-f")
+        self.assertEqual(self.tree("close", "try-f", "dead", "--yes", check=False).returncode, 0)
+        self.assertIn("__board__/plans/v1.x.md", sh("git", "show", "--name-only", "archive/try-f", cwd=self.repo))
+
     def test_dirty_worktree_blocks_close(self):
         work = self.start("try-c")
         (work / "model.py").write_text("dirty\n")

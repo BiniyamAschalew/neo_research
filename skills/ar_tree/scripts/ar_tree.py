@@ -464,10 +464,21 @@ def review_problem(root, base, branch, author):
 
 
 def check_tree(row):
+    """Board-only leftovers (plans, reports, notes an agent forgot to commit) are committed automatically;
+    uncommitted code is refused, because only the human or the idea agent can judge it."""
     tree = Path(row["worktree"]) if row["worktree"] else None
     has_tree = bool(tree and tree.exists())
-    if has_tree and git("status", "--porcelain", cwd=tree):
-        raise SystemExit(f"{tree} has uncommitted changes; commit or discard them first.")
+    if not has_tree:
+        return tree, has_tree
+    status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"], cwd=tree, text=True,
+                            capture_output=True, check=True).stdout
+    paths = [line[3:].split(" -> ")[-1].strip('"') for line in status.splitlines() if line.strip()]
+    code = [p for p in paths if not p.startswith("__board__/")]
+    if code:
+        raise SystemExit(f"{tree} has uncommitted code ({', '.join(code[:5])}); commit or discard it first.")
+    if paths:
+        git("add", "-A", "--", "__board__", cwd=tree)
+        git("commit", "-q", "-m", "board: commit plans/reports/notes before leaving the worktree", cwd=tree)
     return tree, has_tree
 
 

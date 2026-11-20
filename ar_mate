@@ -72,7 +72,7 @@ def main():
         print(f"{args.agent}: no standing-instructions option known; the mate rules are only in the first prompt.")
         command = [*agent["interactive"], *permissions, *extra, f"Read {SKILL} and act as the project's first mate. Then: {first}"]
     keys = PROJECT_ENV.load_keys(PROJECT_ENV.env_file(root))
-    if keys.get("CONDA_ENV") == os.environ.get("CONDA_DEFAULT_ENV"):
+    if keys.get("CONDA_ENV") and keys["CONDA_ENV"] == os.environ.get("CONDA_DEFAULT_ENV"):
         keys.pop("CONDA_ENV")  # already active
     activate = PROJECT_ENV.activation(keys)
     if activate:  # the mate (and every command it runs) works inside the project's code environment

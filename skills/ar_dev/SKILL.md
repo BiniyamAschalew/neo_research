@@ -65,4 +65,4 @@ For scientific results, publish per [artifact policy](../references/artifact-pol
 
 ## 5. Finish
 
-Update `STATUS.md` (see board conventions), then send the card: `python .agents/skills/ar_notify/scripts/slack_notify.py --report <report.md>` (a `skipped` or `failed` status never changes the outcome).
+Update `STATUS.md` (see board conventions). Commit the code, configs and board files of this iteration in the current worktree or branch (never push, never commit data or secrets). Then send the card: `python .agents/skills/ar_notify/scripts/slack_notify.py --report <report.md>` (a `skipped` or `failed` status never changes the outcome).
