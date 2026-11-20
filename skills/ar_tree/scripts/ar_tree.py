@@ -66,6 +66,7 @@ def link_shared(tree, root):
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
     log = module.link_agents(tree, settings_target=root / "__board__/claude/settings.local.json")
+    module.link_assets(tree, main_root=root, log=log)  # same datasets/checkpoints as the main checkout
     module.git_exclude(tree, False, log)
     return log
 

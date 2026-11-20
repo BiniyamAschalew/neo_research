@@ -216,6 +216,20 @@ class ArTreeTests(unittest.TestCase):
         finally:
             del os.environ["AR_MAX_BRANCHES"]
 
+    def test_worktrees_get_asset_links(self):
+        store = Path(self.temp.name) / "store"
+        (store / "datasets/d").mkdir(parents=True)
+        (store / "datasets/d/f.txt").write_text("shared")
+        (self.repo / "assets.links").write_text("data/raw = datasets/d\n")
+        sh("git", "add", "assets.links", cwd=self.repo)
+        sh("git", "commit", "-q", "-m", "assets", cwd=self.repo)
+        (self.repo / "__board__").mkdir(exist_ok=True)
+        (self.repo / "__board__/project.env").write_text(f"ASSETS_ROOT={store}\n")
+        self.tree("new", "with-data", "--question", "q", "--no-herdr")
+        work = self.repo.parent / "proj.ideas/with-data"
+        self.assertEqual((work / "data/raw/f.txt").read_text(), "shared")
+        self.assertEqual(sh("git", "status", "--porcelain", cwd=work), "")
+
 
 if __name__ == "__main__":
     unittest.main()

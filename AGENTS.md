@@ -26,6 +26,7 @@ Shared instructions for every agent (Codex reads this file; Claude imports it). 
 ## Rules
 
 - Code follows [code style](.agents/skills/references/code-style.md): reuse first, entity folders with `_build.py` registries, hierarchical YAML configs, one `run.py` without argparse, `structure.md` kept current, no per-version copies.
+- Datasets, checkpoints and large caches are soft links from the machine's asset store listed in `assets.links` (`ASSETS_ROOT` in `__board__/project.env`): read and write through the repository-relative link path, never copy them into the repo; add a line to `assets.links` and rerun `ar_init .` for a new shared folder.
 - Use the project's code environment (`CONDA_ENV` / `ENV_ACTIVATE` in `__board__/project.env`); record any package you install in the report.
 - Launch experiment runs through `python .agents/skills/ar_notify/scripts/notify_run.py -- <command>` so every completion posts to this project's Slack channel and runs log to this project's W&B (`WANDB_URL`). Never print or commit `__board__/project.env`.
 - Stay within the selected plan; take the smallest reasonable decision on ambiguity and record it; ask when scope or authority would grow.

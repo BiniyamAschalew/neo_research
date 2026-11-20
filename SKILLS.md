@@ -18,7 +18,7 @@ ar_mate [codex]                                    tab 0, main checkout: the fir
 ## `ar_tree`
 ```bash
 T=.agents/skills/ar_tree/scripts/ar_tree.py
-python $T new <slug> --question "..." [--from main|b2] [--agent claude|codex] [--env <conda-env>]
+python $T new <slug> --question "..." [--from main|b2] [--agent claude|codex] [--env <conda-env>]   # also links assets.links
 python $T close <slug> dead|parked [--yes]
 python $T branch <slug> [--into b2 | --new <name>] [--yes]   # step 5 of ar_branch
 python $T open b2                                            # branch worktree ../<project>.branches/b2-<name>

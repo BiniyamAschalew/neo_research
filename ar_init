@@ -12,7 +12,8 @@ Shared, non-project parts are (re)linked to this checkout; project-specific part
     .claude/commands           -> <neo>/...   shared slash commands
     .claude/                      real folder (per project)
     .claude/settings.local.json -> ../__board__/claude/settings.local.json   this project's own state
-    __board__/project.env         this project's Slack webhook and W&B/CoreWeave link (never committed)
+    __board__/project.env         code env, asset store, Slack webhook, W&B link (never committed)
+    assets.links                  shared data/checkpoints soft-linked from the machine's asset store
     __board__/                    never touched, except creating PROJECT.md, project.env and claude/
 
 On an existing setup, anything that came from neo_research (old links, copies of shared
@@ -51,10 +52,23 @@ CONDA_ENV=
 # Slack Incoming Webhook for this project's channel (run ends, plans ready, reports).
 SLACK_WEBHOOK_URL=
 
+# Shared asset store on this machine (datasets, checkpoints), linked per assets.links.
+# The same store can serve every project, e.g. ASSETS_ROOT=/home1/irteam/data-vol1/assets
+ASSETS_ROOT=
+
 # W&B project page, e.g. https://wandb.ai/<entity>/<project> (the project is created on
 # first run). Entity, project and server come from this URL and are passed to every run
 # launched through notify_run.py / ar_goal; the link is added to every Slack message.
 WANDB_URL=
+"""
+ASSETS = "assets.links"
+ASSETS_TEMPLATE = """# Shared data and checkpoints: kept outside git in one store per machine and soft-linked here.
+# One line per link:  <path in this repo> = <path under ASSETS_ROOT, or an absolute path>
+# ASSETS_ROOT comes from __board__/project.env (or the AR_ASSETS environment variable).
+# ar_init, ar_mate and every ar_tree worktree create these links; they are never committed.
+#
+# data/raw = datasets/citation
+# models/checkpoints = checkpoints/my-project
 """
 PROJECT_TEMPLATE = """# Project: {name}
 
@@ -226,6 +240,76 @@ def link_agents(project, replace=False, dry_run=False, log=None, settings_target
     return Setup(project, dry_run, upgrade=False, settings_target=settings_target, log=log).agents()
 
 
+def read_env(path):
+    keys = {}
+    if Path(path).exists():
+        for line in Path(path).read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                name, value = line.split("=", 1)
+                keys[name.strip()] = value.strip().strip('"').strip("'")
+    return keys
+
+
+def read_assets(manifest):
+    entries = []
+    for line in (manifest.read_text().splitlines() if manifest.exists() else []):
+        line = line.split("#", 1)[0].strip()
+        if "=" in line:
+            path, target = (part.strip() for part in line.split("=", 1))
+            if path and target:
+                entries.append((path, target))
+    return entries
+
+
+def exclude_paths(project, paths, dry_run):
+    result = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=project, text=True, capture_output=True)
+    if result.returncode or dry_run:
+        return
+    exclude = (Path(project) / result.stdout.strip()).resolve() / "info/exclude"
+    current = exclude.read_text().splitlines() if exclude.exists() else []
+    missing = [p for p in paths if p not in current]
+    if missing:
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        with exclude.open("a") as handle:
+            handle.write("\n".join(["# neo_research assets.links", *missing]) + "\n")
+
+
+def link_assets(project, main_root=None, dry_run=False, log=None):
+    """Soft-link shared data/checkpoints listed in assets.links from the machine's asset store.
+    Never moves or deletes real files; a real folder in the way is reported."""
+    log = [] if log is None else log
+    project = Path(project).resolve()
+    main_root = Path(main_root or project)
+    manifest = project / ASSETS if (project / ASSETS).exists() else main_root / ASSETS
+    entries = read_assets(manifest)
+    if not entries:
+        return log
+    store = read_env(main_root / "__board__/project.env").get("ASSETS_ROOT") or os.environ.get("AR_ASSETS", "")
+    for path, target in entries:
+        link = project / path
+        if not Path(target).is_absolute() and not store:
+            log.append(f"TODO     {path}: set ASSETS_ROOT in __board__/project.env to link it")
+            continue
+        source = Path(target) if Path(target).is_absolute() else Path(store).expanduser() / target
+        if link.is_symlink() and Path(os.readlink(link)) == source:
+            log.append(f"ok       {path}")
+            continue
+        if link.exists() and not link.is_symlink():
+            log.append(f"CONFLICT {path} is a real folder/file: move its content to {source}, then rerun")
+            continue
+        log.append(f"asset    {path} -> {source}" + ("" if source.exists() else "  (created empty in the store)"))
+        if dry_run:
+            continue
+        if link.is_symlink():
+            link.unlink()
+        source.mkdir(parents=True, exist_ok=True)
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(source, target_is_directory=source.is_dir())
+    exclude_paths(project, [p for p, _ in entries], dry_run)
+    return log
+
+
 def git_exclude(project, dry_run, log, untrack=False):
     project = Path(project)
     result = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=project, text=True, capture_output=True)
@@ -295,6 +379,11 @@ def init(project, dry_run=False, untrack=False):
     setup.ensure_project_md()
     setup.project_env()
     setup.agents()
+    if not (project / ASSETS).exists():
+        setup.log.append(f"create   {ASSETS} (shared data/checkpoint links; commit it)")
+        if not dry_run:
+            (project / ASSETS).write_text(ASSETS_TEMPLATE)
+    link_assets(project, dry_run=dry_run, log=setup.log)
     git_exclude(project, dry_run, setup.log, untrack)
     install_host(dry_run, setup.log)
     if setup.backed_up:

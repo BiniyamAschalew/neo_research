@@ -41,7 +41,7 @@ class ArInitTests(unittest.TestCase):
                          os.path.realpath(self.project / "__board__/claude/settings.local.json"))
         self.assertTrue((self.project / ".agents/skills/ar_tree/SKILL.md").exists())
         self.assertIn("SLACK_WEBHOOK_URL=", (self.project / "__board__/project.env").read_text())
-        self.assertEqual(status(self.project).strip(), "?? __board__/")
+        self.assertEqual(status(self.project).split(), ["??", "__board__/", "??", "assets.links"])  # board + manifest to commit
         tracked = subprocess.run(["git", "add", "-n", "__board__"], cwd=self.project, text=True, capture_output=True).stdout
         self.assertNotIn("project.env", tracked)
         before = (self.project / "__board__/PROJECT.md").read_text()
@@ -134,6 +134,23 @@ class ArInitTests(unittest.TestCase):
         self.assertEqual((p / ".agents/skills/my_local/SKILL.md").read_text(), "project-only")
         self.assertTrue((p / ".agents/skills/ar_branch/SKILL.md").exists())
         self.assertFalse(os.path.lexists(p / ".agents/skills/ar-removed"))
+
+    def test_assets_are_linked_from_the_store(self):
+        store = Path(self.temp.name) / "store"
+        AR_INIT.init(self.project)
+        (self.project / "assets.links").write_text("data/raw = datasets/citation\nmodels/checkpoints = checkpoints/proj\n")
+        env = self.project / "__board__/project.env"
+        env.write_text(env.read_text().replace("ASSETS_ROOT=", f"ASSETS_ROOT={store}"))
+        (store / "datasets/citation").mkdir(parents=True)
+        (store / "datasets/citation/x.csv").write_text("1")
+        log = "\n".join(AR_INIT.init(self.project))
+        self.assertIn("asset    data/raw", log)
+        self.assertEqual((self.project / "data/raw/x.csv").read_text(), "1")
+        self.assertTrue((store / "checkpoints/proj").is_dir())                  # created empty in the store
+        self.assertNotIn("data/raw", status(self.project))                     # links never show in git
+        (self.project / "models/real").mkdir(parents=True)
+        (self.project / "assets.links").write_text("models/real = checkpoints/other\n")
+        self.assertIn("CONFLICT models/real", "\n".join(AR_INIT.init(self.project)))
 
 
 if __name__ == "__main__":

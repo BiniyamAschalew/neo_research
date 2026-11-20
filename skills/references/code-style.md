@@ -30,9 +30,16 @@ methods/                    same pattern (_base.py, _build.py, <name>/)
 data/                       same pattern: loaders, splits, transforms
 utils/<topic>/              shared infrastructure split by topic: config, train, metrics, layers, io, tracking
 tests/                      fast checks and tracked tiny fixtures
+assets.links                which shared data/checkpoint folders are soft-linked in (committed)
+data/raw -> <store>/datasets/<name>              soft links into the machine's asset store
+models/checkpoints -> <store>/checkpoints/<project>   (never committed)
 ```
 
 Create a folder only when it has content; keep a flat module until a second file justifies a sub-package. Never `misc.py`, `helpers2.py`, `new_utils.py`, `version_x/`.
+
+## Shared data and checkpoints
+
+Datasets, pretrained weights, checkpoints and large caches never live in the repository. They sit in one asset store per machine (`ASSETS_ROOT` in `__board__/project.env`, shared by all projects) and appear in the project as soft links listed in `assets.links` (`data/raw = datasets/citation`, `models/checkpoints = checkpoints/my-project`). `ar_init`, `ar_mate` and every `ar_tree` worktree create the links, so all worktrees and projects read the same files without copies. Use a link whenever a folder is large, shared across projects or worktrees, or produced once and reused (preprocessed data, teacher models); keep code and small configs as normal files. Configs refer to the repository-relative link path (`data/raw/...`), never to a machine-specific absolute path. Add a line to `assets.links` when you introduce such a folder, then rerun `ar_init .`.
 
 ## Configs (hierarchical)
 

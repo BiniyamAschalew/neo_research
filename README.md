@@ -17,7 +17,9 @@ Then fill in `my-project/__board__/`:
 | File | Committed | Contents |
 |---|---|---|
 | `PROJECT.md` | yes | data paths, conventions that override the defaults |
-| `project.env` | **never** | `CONDA_ENV` (or `ENV_ACTIVATE`), `SLACK_WEBHOOK_URL` ([Incoming Webhook](https://api.slack.com/messaging/webhooks) for this project's channel), `WANDB_URL` (`https://wandb.ai/<entity>/<project>`) |
+| `project.env` | **never** | `CONDA_ENV` (or `ENV_ACTIVATE`), `ASSETS_ROOT` (this machine's shared store for datasets and checkpoints), `SLACK_WEBHOOK_URL` ([Incoming Webhook](https://api.slack.com/messaging/webhooks) for this project's channel), `WANDB_URL` (`https://wandb.ai/<entity>/<project>`) |
+
+And in the repository root, commit `assets.links`: which large folders are soft-linked from the store, e.g. `data/raw = datasets/citation`, `models/checkpoints = checkpoints/my-project`. Every worktree gets the same links, so data and checkpoints are shared, never copied or committed.
 
 Requirements: git, Python 3.9+, Claude Code and/or Codex. Optional: [Herdr](https://herdr.dev) (one tab per agent), W&B, PyYAML (`ar_goal`). Machine-wide rules such as GPU claims go in `~/.config/ar/host.md` (installed from `hosts/` when `ar_init` recognizes the machine).
 
@@ -62,7 +64,7 @@ Claude `/ar_<name>`, Codex `$ar_<name>`. Commands and flags: **[SKILLS.md](SKILL
 | `ar_goal` | overnight one-change-at-a-time tuning loop with a sealed test |
 | `ar_notify` | Slack text message when a run ends |
 
-Conventions every skill follows: [code style](skills/references/code-style.md) (reuse first; `models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries; hierarchical YAML configs; one `run.py` without argparse; `structure.md` of all signatures; no per-version copies), [W&B tracking](skills/references/tracking.md) (named runs, curves only on real axes, tables for results), [compaction](skills/references/compaction.md) and [review](skills/references/review.md).
+Conventions every skill follows: [code style](skills/references/code-style.md) (reuse first; `models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries; data and checkpoints soft-linked from the asset store; hierarchical YAML configs; one `run.py` without argparse; `structure.md` of all signatures; no per-version copies), [W&B tracking](skills/references/tracking.md) (named runs, curves only on real axes, tables for results), [compaction](skills/references/compaction.md) and [review](skills/references/review.md).
 
 ## Updating and maintenance
 

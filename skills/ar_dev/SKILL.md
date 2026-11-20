@@ -19,6 +19,7 @@ Read [code style](../references/code-style.md) and, for executable work, [struct
 - One experiment file `configs/expt/<name>.yaml` per case (entity choices + overrides); entity YAML only for new entities; `configs/profile/{tiny,full}.yaml`.
 - Root `run.py`: visible `EXPERIMENT` and `PROFILE` constants, then `pipeline.run(build_config(EXPERIMENT, PROFILE))`; no argparse anywhere in the run path.
 - Plain, readable code: checks only at real boundaries (external input, data/label/split contracts) as one-line errors; no try/except that only re-raises or swallows; no wrappers for safety alone; no optional paths the plan does not need.
+- Datasets, checkpoints and large outputs reused across runs live behind `assets.links` soft links (add a line and rerun `ar_init .` for a new one); write checkpoints there, never into git.
 - Delete code and configs this plan makes obsolete.
 - Refresh `structure.md` for changed files: one-line purpose per file, every class/method/function signature with a one-line description, and the flow `run.py -> pipeline.run -> build_* -> fit/predict`.
 
