@@ -46,7 +46,8 @@ my-project/
     PROJECT.md       fill in once: env, data paths, conventions
 ```
 
-- Never overwrites your files: conflicts are reported; `--replace` moves them to `__board__/notes/local/ar_init-backup/` first.
+- Rerun it on an already set-up project to upgrade it. Anything that came from neo_research (old links, copied shared skills or commands, old copies of `AGENTS.md`) is replaced by a link; project-only skills and commands stay beside the shared ones; custom text in `AGENTS.md`/`CLAUDE.md` moves into `__board__/PROJECT.md`; Claude's local settings move to `__board__/claude/`. `__board__/` content (status, plans, reports, notes) is never touched. Every replaced real file is backed up to `__board__/notes/local/ar_init-backup/<time>/`.
+- If an older setup committed agent files to git, `--untrack` removes them from the index (files stay on disk); commit afterwards.
 - Links are absolute and machine-specific, so they are hidden via `.git/info/exclude` and never committed.
 - New or updated skills here reach every linked project immediately. Keep the linked checkout on a stable branch and develop neo_research in a separate clone or worktree.
 

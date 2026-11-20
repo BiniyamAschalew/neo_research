@@ -5,7 +5,7 @@ Claude: `/ar_<name>`. Codex: `$ar_<name>`. Scripts run from the project root; `.
 ## Setup (once per project, per machine)
 
 ```bash
-cd neo_research && ./ar_init ../my-project      # --dry-run to preview, --replace to back up conflicts
+cd neo_research && ./ar_init ../my-project      # also upgrades an older setup; --dry-run to preview, --untrack for old committed links
 ```
 
 Links the shared agent files, creates `__board__/` and `__board__/PROJECT.md` (fill in env, data, conventions). Optional: paste a Slack Incoming Webhook URL into `neo_research/secrets/slack.env`.

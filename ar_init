@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
-"""Set up a research project to use this neo_research checkout.
+"""Set up, or upgrade, a research project to use this neo_research checkout.
 
-    ./ar_init <project-path>            # set up (safe: never deletes or overwrites your files)
-    ./ar_init <project-path> --dry-run  # show what would change
-    ./ar_init <project-path> --replace  # move conflicting real files to __board__/notes/local/ar_init-backup/ first
+    ./ar_init <project>            # set up or upgrade; safe to rerun
+    ./ar_init <project> --dry-run  # show what would change
+    ./ar_init <project> --untrack  # also untrack agent files an older setup committed (index only)
 
-Creates absolute links to the shared agent files, a project-local __board__/, and keeps
-Claude's per-project settings inside that board:
+Shared, non-project parts are (re)linked to this checkout; project-specific parts are kept:
 
-    .agents                    -> <neo>/.agents                 shared skills (Codex)
-    .codex                     -> <neo>/.codex                  shared Codex config
-    AGENTS.md                  -> <neo>/AGENTS.md               shared instructions
+    .agents, .codex            -> <neo>/...   shared skills and Codex config
+    AGENTS.md, .claude/CLAUDE.md -> <neo>/... shared instructions
+    .claude/commands           -> <neo>/...   shared slash commands
     .claude/                      real folder (per project)
-      commands                 -> <neo>/.claude/commands        shared slash commands
-      CLAUDE.md                -> <neo>/.claude/CLAUDE.md       shared instructions
-      settings.local.json      -> ../__board__/claude/settings.local.json   this project's own state
-    __board__/PROJECT.md          project specifics (env, data, conventions); fill in once
+    .claude/settings.local.json -> ../__board__/claude/settings.local.json   this project's own state
+    __board__/                    never touched, except creating PROJECT.md and claude/
 
-Links are machine-specific, so they are ignored through .git/info/exclude (shared by all
-worktrees, never committed). On a host with a known GPU helper, ~/.config/ar/host.md is
-installed from hosts/ when missing.
+On an existing setup, anything that came from neo_research (old links, copies of shared
+skills/commands, old versions of AGENTS.md) is replaced by a link. Anything project-specific
+is kept: a project-only skill or command stays next to the shared ones, and custom text in
+AGENTS.md / CLAUDE.md is moved into __board__/PROJECT.md. Every replaced real file is first
+backed up to __board__/notes/local/ar_init-backup/<time>/.
 """
 
 import argparse
 from datetime import datetime
-import json
 import os
 from pathlib import Path
 import shutil
@@ -32,11 +30,13 @@ import subprocess
 import sys
 
 NEO = Path(__file__).resolve().parent
-SHARED = {".agents": ".agents", ".codex": ".codex", "AGENTS.md": "AGENTS.md",
-          ".claude/commands": ".claude/commands", ".claude/CLAUDE.md": ".claude/CLAUDE.md"}
+LINK_DIRS = {".agents": ".agents", ".codex": ".codex", ".claude/commands": ".claude/commands"}
+LINK_FILES = {"AGENTS.md": "AGENTS.md", ".claude/CLAUDE.md": ".claude/CLAUDE.md"}
+SHARED = {**LINK_DIRS, **LINK_FILES}  # used by ar_tree and the old-tracked-files check
 LOCAL_SETTINGS = (".claude/settings.local.json", "__board__/claude/settings.local.json")
 EXCLUDE = [".agents", ".codex", "AGENTS.md", ".claude/commands", ".claude/CLAUDE.md",
            ".claude/settings.local.json", ".claude/*.lock", "__board__/claude/", "__board__/notes/local/"]
+JUNK = {".DS_Store", "__pycache__"}
 HOST_FILE = Path(os.environ.get("AR_HOST_FILE", Path.home() / ".config/ar/host.md"))
 HOSTS = {"irteam-gpu.md": Path("/home1/irteam/data-vol1/persist_notify.py")}
 PROJECT_TEMPLATE = """# Project: {name}
@@ -51,35 +51,154 @@ Project-specific facts every agent reads at startup (shared rules live in neo_re
 """
 
 
-def is_link_to(path, target):
-    return path.is_symlink() and Path(os.readlink(path)) == target
+class Setup:
+    def __init__(self, project, dry_run=False, upgrade=True, settings_target=None, log=None):
+        self.project = Path(project).resolve()
+        self.dry_run, self.upgrade, self.settings_target = dry_run, upgrade, settings_target
+        self.log = [] if log is None else log
+        self.backup = self.project / "__board__/notes/local/ar_init-backup" / datetime.now().strftime("%Y%m%dT%H%M%S")
+        self.neo_git = (NEO / ".git").exists()
+        self.backed_up = False
 
+    # --- provenance: did this file/folder come from neo_research? ---------------------------
+    def from_neo(self, path):
+        if path.is_symlink():
+            target = Path(os.path.realpath(path))
+            return target == NEO or NEO in target.parents or not path.exists()  # dangling old links count too
+        if path.is_dir():
+            entries = [e for e in path.iterdir() if e.name not in JUNK]
+            return bool(entries) and all(self.from_neo(e) for e in entries)
+        return self.known_blob(path)
 
-def place_link(path, target, replace, backup, dry_run, log):
-    """Create path -> target. Existing links are re-pointed; real files are only moved with --replace."""
-    if is_link_to(path, target):
-        log.append(f"ok       {path.name:<22} -> {target}")
-        return
-    if path.is_symlink():
-        log.append(f"relink   {path.name:<22} -> {target}   (was -> {os.readlink(path)})")
-        if not dry_run:
-            path.unlink()
-    elif path.exists():
-        if not replace:
-            log.append(f"CONFLICT {path}: real {'folder' if path.is_dir() else 'file'} exists; rerun with --replace to move it to the backup")
+    def known_blob(self, path):
+        """True if this exact content exists in neo_research's git objects (any past version)."""
+        if not self.neo_git:
+            return False
+        blob = subprocess.run(["git", "hash-object", str(path)], text=True, capture_output=True).stdout.strip()
+        return bool(blob) and subprocess.run(["git", "-C", str(NEO), "cat-file", "-e", blob], capture_output=True).returncode == 0
+
+    # --- primitive actions --------------------------------------------------------------------
+    def note(self, action, path, detail=""):
+        relative = path.relative_to(self.project) if self.project in path.parents else path
+        self.log.append(f"{action:<8} {relative}{'  ' + detail if detail else ''}")
+
+    def remove(self, path):
+        """Unlink a symlink, or move a real file/folder into the backup."""
+        if self.dry_run:
             return
-        log.append(f"backup   {path} -> {backup / path.name}")
-        if not dry_run:
-            backup.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(path), str(backup / path.name))
-    else:
-        log.append(f"link     {path.name:<22} -> {target}")
-    if not dry_run:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.symlink_to(target, target_is_directory=target.is_dir())
+        if path.is_symlink():
+            path.unlink()
+        else:
+            self.backed_up = True
+            dest = self.backup / path.relative_to(self.project)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(path), str(dest))
+
+    def link(self, path, target):
+        if not self.dry_run:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.symlink_to(target, target_is_directory=Path(target).is_dir())
+
+    # --- sync ---------------------------------------------------------------------------------
+    def sync(self, path, target):
+        """Make path a link to target; keep project-only content when path is a real folder."""
+        if path.is_symlink() and Path(os.readlink(path)) == target:
+            return self.note("ok", path)
+        if path.is_symlink() or not path.exists():
+            self.note("relink" if path.is_symlink() else "link", path, f"-> {target}")
+            if path.is_symlink():
+                self.remove(path)
+            return self.link(path, target)
+        if not self.upgrade:
+            return self.note("keep", path, "(real, left as is)")
+        if self.from_neo(path):
+            self.note("replace", path, f"-> {target}  (shared copy; backed up)")
+            self.remove(path)
+            return self.link(path, target)
+        if path.is_dir() and target.is_dir():
+            return self.merge(path, target)
+        if path.name.endswith(".md") and path.name in {"AGENTS.md", "CLAUDE.md"}:
+            return self.migrate_instructions(path, target)
+        self.note("keep", path, "(project-specific; delete it to use the shared version)")
+
+    def merge(self, folder, target):
+        """Folder holds project-only entries: keep them, link every shared entry beside them."""
+        shared_names = {item.name for item in target.iterdir() if item.name not in JUNK}
+        for entry in sorted(folder.iterdir()):
+            if entry.name in JUNK or entry.name in shared_names:
+                continue
+            if self.from_neo(entry):  # e.g. a link to a skill that neo no longer has
+                self.note("remove", entry, "(stale shared entry)")
+                self.remove(entry)
+            else:
+                self.note("keep", entry, "(project-only)")
+        for name in sorted(shared_names):
+            self.sync(folder / name, target / name)
+
+    def migrate_instructions(self, path, target):
+        """Custom AGENTS.md/CLAUDE.md text moves into PROJECT.md, then the shared file is linked."""
+        project_md = self.project / "__board__/PROJECT.md"
+        self.note("migrate", path, f"custom text -> __board__/PROJECT.md; then -> {target}")
+        if not self.dry_run:
+            self.ensure_project_md()
+            stamp = datetime.now().strftime("%Y-%m-%d")
+            with project_md.open("a") as handle:
+                handle.write(f"\n\n## From the previous {path.relative_to(self.project)} ({stamp}, ar_init)\n\n"
+                             f"Shared rules now come from neo_research; keep only project-specific lines below.\n\n"
+                             + path.read_text().strip() + "\n")
+        self.remove(path)
+        self.link(path, target)
+
+    def ensure_project_md(self):
+        path = self.project / "__board__/PROJECT.md"
+        if not path.exists():
+            self.note("create", path, "(fill in once)")
+            if not self.dry_run:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(PROJECT_TEMPLATE.format(name=self.project.name))
+
+    def settings(self):
+        link, store = (self.project / p for p in LOCAL_SETTINGS)
+        store = Path(self.settings_target) if self.settings_target else store
+        target = store if self.settings_target else Path("../__board__/claude/settings.local.json")
+        if link.is_symlink() and Path(os.readlink(link)) == target:
+            return self.note("ok", link)
+        if link.exists() and not link.is_symlink() and not store.exists():
+            self.note("move", link, "-> __board__/claude/ (this project's Claude settings)")
+            if not self.dry_run:
+                store.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(link), str(store))
+        elif link.exists() and not link.is_symlink():
+            self.note("keep", link, "(real file; __board__/claude/ copy already exists)")
+            return
+        if not self.dry_run and not store.exists():
+            store.parent.mkdir(parents=True, exist_ok=True)
+            store.write_text("{}\n")
+        self.note("link", link, f"-> {target}")
+        if link.is_symlink():
+            self.remove(link)
+        self.link(link, target)
+
+    def agents(self):
+        claude = self.project / ".claude"
+        if claude.is_symlink():  # an old whole-folder link would write this project's state into neo
+            self.note("unlink", claude, f"(was -> {os.readlink(claude)}); now a real per-project folder")
+            self.remove(claude)
+        if not self.dry_run:
+            claude.mkdir(exist_ok=True)
+        for relative, shared in SHARED.items():
+            self.sync(self.project / relative, NEO / shared)
+        self.settings()
+        return self.log
 
 
-def git_exclude(project, dry_run, log):
+def link_agents(project, replace=False, dry_run=False, log=None, settings_target=None):
+    """Links only, never migrating or replacing real files. Used by ar_tree for new worktrees."""
+    return Setup(project, dry_run, upgrade=False, settings_target=settings_target, log=log).agents()
+
+
+def git_exclude(project, dry_run, log, untrack=False):
+    project = Path(project)
     result = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=project, text=True, capture_output=True)
     if result.returncode:
         log.append("note     not a git repository; no ignore rules written")
@@ -88,15 +207,21 @@ def git_exclude(project, dry_run, log):
     current = exclude.read_text().splitlines() if exclude.exists() else []
     missing = [e for e in EXCLUDE if e not in current]
     if missing:
-        log.append(f"ignore   {', '.join(missing)} in {exclude}")
+        log.append(f"ignore   {', '.join(missing)}  (in .git/info/exclude)")
         if not dry_run:
             exclude.parent.mkdir(parents=True, exist_ok=True)
             with exclude.open("a") as handle:
                 handle.write("\n# neo_research ar_init (machine-specific links)\n" + "\n".join(missing) + "\n")
-    tracked = subprocess.run(["git", "ls-files", "--", *SHARED], cwd=project, text=True, capture_output=True).stdout.split()
-    if tracked:
-        log.append(f"note     {len(tracked)} old tracked agent files (e.g. {tracked[0]}); untrack them once with: "
-                   f"git rm -r --cached {' '.join(sorted({t.split('/')[0] if t.startswith(('.agents', '.codex')) else t for t in tracked}))}")
+    tracked = subprocess.run(["git", "ls-files", "--", *SHARED, LOCAL_SETTINGS[0]], cwd=project, text=True,
+                             capture_output=True).stdout.split()
+    if not tracked:
+        return
+    if untrack and not dry_run:
+        subprocess.run(["git", "rm", "-r", "-q", "--cached", "-f", "--", *tracked], cwd=project, check=True)
+        log.append(f"untrack  {len(tracked)} agent files from an older setup (index only); commit to finish")
+    else:
+        log.append(f"note     {len(tracked)} agent files from an older setup are still tracked by git "
+                   f"(e.g. {tracked[0]}); rerun with --untrack, then commit")
 
 
 def install_host(dry_run, log):
@@ -113,69 +238,35 @@ def install_host(dry_run, log):
     log.append(f"note     no machine rules; add {HOST_FILE} if this host needs any (see hosts/)")
 
 
-def link_agents(project, replace=False, dry_run=False, log=None, settings_target=None):
-    """Shared links + local Claude settings only. Also used by ar_tree for new worktrees,
-    whose settings point at the main checkout's board (settings_target) so approvals are shared."""
-    log = [] if log is None else log
-    project = Path(project).resolve()
-    backup = project / "__board__/notes/local/ar_init-backup" / datetime.now().strftime("%Y%m%dT%H%M%S")
-    claude = project / ".claude"
-    if claude.is_symlink():  # an old whole-folder link would put this project's state into neo_research
-        log.append(f"unlink   .claude (was -> {os.readlink(claude)}); now a real per-project folder")
-        if not dry_run:
-            claude.unlink()
-    if not dry_run:
-        claude.mkdir(exist_ok=True)
-    for relative, shared in SHARED.items():
-        place_link(project / relative, NEO / shared, replace, backup, dry_run, log)
-    link, store = (project / p for p in LOCAL_SETTINGS)
-    if settings_target:
-        store = Path(settings_target)
-    if not dry_run:
-        store.parent.mkdir(parents=True, exist_ok=True)
-        if link.exists() and not link.is_symlink() and not store.exists():
-            shutil.move(str(link), str(store))
-            log.append(f"move     .claude/settings.local.json -> {store.relative_to(project)}")
-        if not store.exists():
-            store.write_text("{}\n")
-    target = store if settings_target else Path("../__board__/claude/settings.local.json")
-    place_link(link, target, replace, backup, dry_run, log)
-    return log
-
-
-def init(project, replace=False, dry_run=False):
+def init(project, dry_run=False, untrack=False):
     project = Path(project).expanduser().resolve()
     if not project.is_dir():
         raise SystemExit(f"Not a directory: {project}")
     if project == NEO:
         raise SystemExit("Run ar_init on a research project, not on neo_research itself.")
     branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=NEO, text=True, capture_output=True).stdout.strip()
-    log = [f"project  {project}", f"shared   {NEO} (branch {branch or '?'}; every linked project follows this checkout live)"]
-    board = project / "__board__"
-    if not board.exists():
-        log.append("create   __board__/")
-    link_agents(project, replace, dry_run, log)
-    if not (board / "PROJECT.md").exists():
-        log.append("create   __board__/PROJECT.md (fill in once)")
-        if not dry_run:
-            board.mkdir(exist_ok=True)
-            (board / "PROJECT.md").write_text(PROJECT_TEMPLATE.format(name=project.name))
-    git_exclude(project, dry_run, log)
-    install_host(dry_run, log)
-    conflicts = [l for l in log if l.startswith("CONFLICT")]
-    log.append("dry run; nothing changed" if dry_run else ("done with conflicts (nothing was overwritten)" if conflicts else "done"))
-    return log, conflicts
+    setup = Setup(project, dry_run)
+    setup.log += [f"project  {project}", f"shared   {NEO} (branch {branch or '?'}; linked projects follow it live)"]
+    if not (project / "__board__").exists():
+        setup.log.append("create   __board__/")
+    setup.ensure_project_md()
+    setup.agents()
+    git_exclude(project, dry_run, setup.log, untrack)
+    install_host(dry_run, setup.log)
+    if setup.backed_up:
+        setup.log.append(f"backup   replaced files are in {setup.backup.relative_to(project)}")
+    setup.log.append("dry run; nothing changed" if dry_run else "done")
+    return setup.log
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("project", type=Path)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--replace", action="store_true", help="Move conflicting real files/folders to the backup, then link")
+    parser.add_argument("--untrack", action="store_true", help="git rm --cached agent files an older setup committed")
     args = parser.parse_args()
-    log, conflicts = init(args.project, args.replace, args.dry_run)
-    print("\n".join(log))
-    return 1 if conflicts else 0
+    print("\n".join(init(args.project, args.dry_run, args.untrack)))
+    return 0
 
 
 if __name__ == "__main__":

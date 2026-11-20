@@ -1,9 +1,10 @@
-"""ar_init: links shared agent files, keeps Claude local state in __board__, never overwrites real files."""
+"""ar_init: fresh setup, and upgrading an older setup without losing project-specific content."""
 
 import importlib.machinery
 import importlib.util
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -15,6 +16,10 @@ AR_INIT = importlib.util.module_from_spec(SPEC)
 LOADER.exec_module(AR_INIT)
 
 
+def status(project):
+    return subprocess.run(["git", "status", "--porcelain"], cwd=project, text=True, capture_output=True).stdout
+
+
 class ArInitTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -22,40 +27,85 @@ class ArInitTests(unittest.TestCase):
         self.project = Path(self.temp.name) / "proj"
         self.project.mkdir()
         subprocess.run(["git", "init", "-q"], cwd=self.project, check=True)
-        os.environ["AR_HOST_FILE"] = str(Path(self.temp.name) / "host.md")
-        AR_INIT.HOST_FILE = Path(os.environ["AR_HOST_FILE"])
+        AR_INIT.HOST_FILE = Path(self.temp.name) / "host.md"
+
+    def assert_shared(self, relative):
+        self.assertEqual(os.path.realpath(self.project / relative), os.path.realpath(NEO / relative), relative)
 
     def test_fresh_project(self):
-        log, conflicts = AR_INIT.init(self.project)
-        self.assertEqual(conflicts, [])
-        for relative, shared in AR_INIT.SHARED.items():
-            self.assertEqual((self.project / relative).resolve(), (NEO / shared).resolve(), relative)
+        AR_INIT.init(self.project)
+        for relative in AR_INIT.SHARED:
+            self.assert_shared(relative)
         self.assertTrue((self.project / ".claude").is_dir() and not (self.project / ".claude").is_symlink())
-        settings = self.project / ".claude/settings.local.json"
-        self.assertEqual(settings.resolve(), (self.project / "__board__/claude/settings.local.json").resolve())
-        self.assertTrue((self.project / "__board__/PROJECT.md").exists())
+        self.assertEqual(os.path.realpath(self.project / ".claude/settings.local.json"),
+                         os.path.realpath(self.project / "__board__/claude/settings.local.json"))
         self.assertTrue((self.project / ".agents/skills/ar_tree/SKILL.md").exists())
-        status = subprocess.run(["git", "status", "--porcelain"], cwd=self.project, text=True, capture_output=True).stdout
-        self.assertEqual(status.strip(), "?? __board__/")  # links ignored; only the board is project content
-        self.assertEqual(AR_INIT.init(self.project)[1], [])  # idempotent
+        self.assertEqual(status(self.project).strip(), "?? __board__/")
+        before = (self.project / "__board__/PROJECT.md").read_text()
+        AR_INIT.init(self.project)  # idempotent
+        self.assertEqual((self.project / "__board__/PROJECT.md").read_text(), before)
 
-    def test_real_files_are_never_overwritten(self):
-        (self.project / "AGENTS.md").write_text("my own notes")
-        log, conflicts = AR_INIT.init(self.project)
-        self.assertEqual(len(conflicts), 1)
-        self.assertEqual((self.project / "AGENTS.md").read_text(), "my own notes")
-        AR_INIT.init(self.project, replace=True)
-        self.assertTrue((self.project / "AGENTS.md").is_symlink())
-        backups = list((self.project / "__board__/notes/local/ar_init-backup").glob("*/AGENTS.md"))
-        self.assertEqual(backups[0].read_text(), "my own notes")
+    def test_upgrade_old_setup_keeps_project_content(self):
+        p = self.project
+        # an older per-entry installation with copies, stale links and project-only additions
+        (p / ".agents/skills").mkdir(parents=True)
+        (p / ".agents/skills/ar_dev").symlink_to(NEO / "skills/ar_dev")                  # old shared link
+        shutil.copytree(NEO / ".agents/skills/ar_note", p / ".agents/skills/ar_note")    # copied shared skill
+        (p / ".agents/skills/ar-loop").symlink_to(NEO / "gone/ar-loop")                   # stale, dangling
+        (p / ".agents/skills/my_local").mkdir()
+        (p / ".agents/skills/my_local/SKILL.md").write_text("project-only skill")
+        (p / ".claude/commands").mkdir(parents=True)
+        (p / ".claude/commands/ar_plan.md").symlink_to(NEO / "adapters/claude/ar_plan.md")
+        (p / ".claude/commands/my_cmd.md").write_text("project-only command")
+        shutil.copy(NEO / "AGENTS.md", p / "AGENTS.md")                                   # unchanged shared copy
+        (p / ".claude/CLAUDE.md").write_text("# Mine\nUse dataset Z with seed 7.\n")       # customized
+        (p / ".claude/settings.local.json").write_text('{"permissions": {"allow": ["Bash(ls)"]}}')
+        (p / ".codex").mkdir()
+        (p / ".codex/config.toml").write_text('model = "gpt-5"\n')                        # project-specific config
+        (p / "__board__/reports/v1").mkdir(parents=True)
+        (p / "__board__/reports/v1/v1.md").write_text("results")
+        (p / "__board__/STATUS.md").write_text("status")
 
-    def test_old_whole_claude_link_becomes_local_and_settings_move_to_board(self):
-        elsewhere = Path(self.temp.name) / "shared_claude"
-        elsewhere.mkdir()
-        (self.project / ".claude").symlink_to(elsewhere, target_is_directory=True)
+        AR_INIT.init(p)
+
+        self.assertEqual((p / "__board__/reports/v1/v1.md").read_text(), "results")
+        self.assertEqual((p / "__board__/STATUS.md").read_text(), "status")
+        self.assertEqual((p / ".agents/skills/my_local/SKILL.md").read_text(), "project-only skill")
+        self.assertFalse(os.path.lexists(p / ".agents/skills/ar-loop"))
+        for name in ("ar_dev", "ar_note", "ar_tree", "ar_goal", "ar_mate", "ar_notify"):
+            self.assert_shared(f".agents/skills/{name}")
+        self.assertEqual((p / ".claude/commands/my_cmd.md").read_text(), "project-only command")
+        self.assert_shared(".claude/commands/ar_tree.md")
+        self.assert_shared("AGENTS.md")
+        self.assert_shared(".claude/CLAUDE.md")
+        self.assertIn("Use dataset Z with seed 7.", (p / "__board__/PROJECT.md").read_text())
+        self.assertIn("Bash(ls)", (p / "__board__/claude/settings.local.json").read_text())
+        self.assertEqual((p / ".codex/config.toml").read_text(), 'model = "gpt-5"\n')
+        backups = list((p / "__board__/notes/local/ar_init-backup").glob("*"))
+        self.assertTrue((backups[0] / ".claude/CLAUDE.md").exists())
+        self.assertTrue((backups[0] / ".agents/skills/ar_note/SKILL.md").exists())
+        log = "\n".join(AR_INIT.init(p))  # second run: nothing left to change
+        self.assertNotIn("replace", log)
+        self.assertNotIn("migrate", log)
+
+    def test_whole_folder_links_from_old_setup(self):
+        elsewhere = Path(self.temp.name) / "old_neo"
+        (elsewhere / ".claude").mkdir(parents=True)
+        (self.project / ".claude").symlink_to(elsewhere / ".claude", target_is_directory=True)
+        (self.project / ".agents").symlink_to(elsewhere / ".agents", target_is_directory=True)
         AR_INIT.init(self.project)
         self.assertFalse((self.project / ".claude").is_symlink())
-        self.assertEqual(list(elsewhere.iterdir()), [])  # nothing written into the old shared folder
+        self.assert_shared(".agents")
+        self.assertEqual(list((elsewhere / ".claude").iterdir()), [])
+
+    def test_untrack_old_tracked_links(self):
+        (self.project / "AGENTS.md").symlink_to("../neo_research/AGENTS.md")
+        subprocess.run(["git", "add", "AGENTS.md"], cwd=self.project, check=True)
+        log = "\n".join(AR_INIT.init(self.project))
+        self.assertIn("--untrack", log)
+        AR_INIT.init(self.project, untrack=True)
+        self.assertEqual(subprocess.run(["git", "ls-files", "AGENTS.md"], cwd=self.project, text=True,
+                                        capture_output=True).stdout, "")
 
     def test_dry_run_changes_nothing(self):
         AR_INIT.init(self.project, dry_run=True)
