@@ -48,7 +48,8 @@ def goal_progress(tree):
 
 def idea_status(row):
     tree = Path(row["worktree"]) if row["worktree"] else None
-    info = {"slug": row["slug"], "status": row["status"], "question": row["question"]}
+    info = {"slug": row["slug"], "kind": row.get("kind") or "idea", "branch": row["branch"],
+            "status": row["status"], "question": row["question"]}
     if not tree or not tree.exists():
         return info
     status = (tree / "__board__/STATUS.md").read_text() if (tree / "__board__/STATUS.md").exists() else ""
@@ -85,7 +86,7 @@ def main():
     print(f"{'idea':<24} {'agent':<8} {'phase':<22} {'latest report / goal'}")
     for i in ideas:
         last = i.get("goal") or i.get("latest_report") or i.get("latest_plan") or "-"
-        print(f"{i['slug']:<24} {i.get('agent') or '-':<8} {(i.get('phase') or i['status'])[:22]:<22} {last}"
+        print(f"{('dir/' if i['kind'] == 'direction' else '') + i['slug']:<24} {i.get('agent') or '-':<8} {(i.get('phase') or i['status'])[:22]:<22} {last}"
               + ("  [uncommitted]" if i.get("dirty") else ""))
     for g in report["gpus"]:
         print(f"GPU{g['gpu']}: {g['mem_used_mib']}/{g['mem_total_mib']} MiB, {g['util_pct']}% (persist.py filler counts as used)")

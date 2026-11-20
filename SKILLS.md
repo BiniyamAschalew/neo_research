@@ -19,22 +19,34 @@ ar_mate [codex], then "start an idea: does X improve Y?"   (tab 0, main checkout
   -> /ar_metaplan -> /ar_plan                     you edit the Experiment Card
   -> /ar_dev                                      runs via notify_run.py -> Slack on completion
   -> /ar_goal (optional, overnight tuning)
-  -> ar_tree close x-idea dead|parked|win         dead/parked: summary only; win: code + results merged
+  -> ar_tree close x-idea dead|parked             failed: summary only
+  -> /ar_compact, ar_tree promote x-idea --new <dir>   works: compacted code becomes branch dir/<dir>
+  -> ar_tree new y --from <dir> ... promote --into <dir>   go deeper in the direction
+  -> ar_tree open <dir>, /ar_compact, ar_tree graduate <dir>   best version -> main
 ```
 
 ## New skills
 
-### `ar_tree`: one worktree per idea
+### `ar_tree`: explorations → directions → main
 ```bash
 T=.agents/skills/ar_tree/scripts/ar_tree.py
-python $T new <slug> --question "..." [--agent claude|codex] [--env <conda-env>]
-python $T list
-python $T close <slug> dead|parked|win     # dry run: shows the plan, creates the summary template
-python $T close <slug> dead|parked|win --yes
-python $T bury <slug> --question "..." --paths old_dir/ [--yes]   # clean old experiments off main
+python $T new <slug> --question "..." [--from main|<direction>] [--agent claude|codex] [--env <conda-env>]
+python $T close <slug> dead|parked [--yes]               # failed: summary only
+python $T promote <slug> --new|--into <direction> [--yes] # works: into dir/<direction> (needs ar_compact)
+python $T open <direction>                               # worktree on the direction (compaction, review)
+python $T graduate <direction> [--yes]                   # best version -> main (needs ar_compact)
+python $T drop <direction> [--yes]                       # abandoned direction: summary only
+python $T list | bury <slug> --question "..." --paths old_dir/ [--yes]
 ```
-- Worktree `../<project>.ideas/<slug>`, branch `idea/<slug>`, Herdr tab `<project>:<slug>`.
-- Close needs a filled `__board__/ideas/<slug>.md` (question, approach, main results, why it failed, don't retry unless). Code stays in tag `archive/<slug>`; raw results move to `~/ar_archive/`; `win` squash-merges the idea's code, configs, plans and reports into main (stops on conflicts, changes nothing).
+- Worktrees: `../<project>.ideas/<slug>` (branch `idea/<slug>`), `../<project>.dirs/<direction>`; Herdr tab `<project>:<slug>`.
+- Every exit needs a filled summary in main: `__board__/ideas/<slug>.md` or `__board__/directions/<name>.md`. Code stays in tags `archive/<slug>` / `archive/dir-<name>`; raw results move to `~/ar_archive/` (or into main on graduation).
+- Merges are squash merges that keep bookkeeping out (`IDEA.md`, `STATUS.md`, `goal/`, `COMPACTION.md`) and stop on conflicts without changing anything.
+
+### `ar_compact`: compress before moving up
+```bash
+/ar_compact "idea cosine-lr into dir/schedules"     # in the worktree being promoted
+```
+Agree with the human what survives; freeze tiny-profile outputs; delete everything else, fold survivors into the entity layout, rewrite for clarity and speed with identical behavior; rerun and compare (parity); refresh `structure.md`; commit `__board__/COMPACTION.md` last. `promote`/`graduate` refuse if code changed after it.
 
 ### `ar_mate`: first mate across ideas
 ```bash

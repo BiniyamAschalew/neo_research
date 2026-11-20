@@ -87,7 +87,7 @@ Resolve `<version>` in this order:
 2. Otherwise, use the leading version token in the plan filename.
 3. If neither location is unambiguous, ask the human instead of guessing.
 
-Use the exact version for directories, such as `config/v1.0/` and `__board__/reports/v1.0/`. For Python filenames, normalize dots and hyphens to underscores, such as `runs/run_v1_0.py`.
+Use the version only for board files (`__board__/plans/`, `__board__/reports/`). Code and configs are organized by entity, never by version.
 
 ## Modularity and Organization Contract
 
@@ -126,7 +126,7 @@ Keep it concise, current, and organized by repository-relative file path. Update
 - Every function signature and a one-sentence description.
 - The debug/run entrypoint and shared callable relationship when applicable.
 
-The repository-root `run.py` is the primary debugger entrypoint. Include its version macro, builder function, and imported versioned `main()` relationship in the map. Version-specific modules remain under `runs/`, but final validation must invoke the root runner.
+The repository-root `run.py` is the primary debugger entrypoint. Include its `EXPERIMENT`/`PROFILE` constants and the call flow `run.py -> pipeline.run -> build_* -> fit/predict` in the map.
 
 Use language-native signatures, including parameters and return annotations when present. Include source files, tests, and experiment run files. Exclude dependencies, caches, generated build output, datasets, and `__board__/` artifacts. For files without classes or functions, record the file purpose and relevant entrypoint behavior.
 
@@ -148,44 +148,17 @@ Verify documented signatures against the final source and remove stale entries f
 
 ## Experiment Config and Debug Contract
 
-Use these defaults for new Python experiments; honor an established root entrypoint or layout specified by project instructions or the selected plan. Adapt to another language when appropriate. Code-only work needs no fabricated experiment configs or runner.
+Follow [code style](../references/code-style.md); a project's established layout in `__board__/PROJECT.md` takes precedence. In short:
 
-
-For every distinct experiment case:
-
-1. Provide `config/<version>/<case>/full.yaml` and `tiny.yaml` derived from shared scientific defaults. Preserve the full settings; tiny changes input and work limits through the same pipeline. Reuse the same thin run module for both profiles.
-2. Put run parameters in YAML rather than duplicating them in Python. Include seeds and other reproducibility-critical settings.
-3. Use portable repository-relative paths; never store secrets or machine-specific absolute paths.
-4. Keep a thin version-specific Python entrypoint under `runs/`:
-   - One case: `runs/run_<version-id>.py`
-   - Multiple cases: `runs/run_<version-id>_<case>.py`
-   It must expose a no-argument `main()` callable and may retain an `if __name__ == "__main__"` compatibility block.
-5. Define a visible module-level `CONFIG_PATH` constant in the version-specific module, defaulting to the case's `tiny.yaml`. Normal debugging requires only editing this variable; select `full.yaml` explicitly before scientific acquisition.
-   **No argparse rule:** The main run files (root `run.py` and every `runs/run_<version>[_<case>].py`) must not use argparse or any other command-line parsing at all. Define the run settings as visible module-level variables inside the Python file — only the config path/name and similar general variables (for example `VERSION` and `CONFIG_PATH`), never experiment parameters, which belong in YAML. To run a different experiment, open the file and edit those variables. Reason: argparse is inconvenient with a Python debugger, which should launch `run.py` with no arguments. If an existing main run file you touch still parses arguments, flag it in the report.
-6. Maintain a repository-root `run.py` as the sole primary debugger entrypoint. It must define a visible macro variable such as `VERSION = "v1"`, set to the latest implemented version, and provide `build_main(version: str) -> Callable[[], object]`. The builder imports the matching `runs.run_<version>` module or matching `runs.run_<version>_*` case module and returns its `main()` callable.
-7. Run and debug from the repository root with `python run.py`; do not use a `runs/...` path for the final debug execution.
-
-A root `run.py` should be equivalent to:
-
-```python
-from importlib import import_module
-from pathlib import Path
-from typing import Callable
-
-REPO_ROOT = Path(__file__).resolve().parent
-VERSION = "v1"
-
-def build_main(version: str) -> Callable[[], object]:
-    module = import_module(f"runs.run_{version}")
-    return module.main
-
-if __name__ == "__main__":
-    build_main(VERSION)()
-```
+1. Implement new behavior inside the existing entity folders (`models/`, `methods/`, `data/`, `utils/<topic>/`), reusing `structure.md` signatures; register new entities in the folder's `_build.py`.
+2. Add one experiment file `configs/expt/<name>.yaml` (entity choices + overrides) per experiment case; add an entity YAML only for a new entity. Never create per-version code or config copies (`runs/run_vN.py`, `config/vN/`).
+3. Profiles: `configs/profile/tiny.yaml` shrinks data and steps through the same pipeline; `full.yaml` keeps scientific settings.
+4. Root `run.py` is the only entrypoint: visible `EXPERIMENT = "<name>"` and `PROFILE = "tiny"`, then `pipeline.run(build_config(EXPERIMENT, PROFILE))`. **No argparse** or other command-line parsing in `run.py` or `pipeline.py`; to run something else, edit those constants. Debug and validate with `python run.py` from the repository root.
+5. Delete code, entity files and experiment files of variants this change makes obsolete; record the commit SHA and experiment name in the report so old results stay reproducible from git.
 
 Use eligible tracked real-data excerpts and a provenance/hash manifest, preferably reused under `tests/fixtures/<contract>/`. Tiny performs actual model execution and, for trainable methods, bounded optimizer updates; isolate its outputs from scientific results. Document external weights and dependencies so it runs without full datasets or ignored source helpers.
 
-Keep model, data, training, evaluation, and plotting logic out of both runner layers. Validate that every YAML file loads, contains required fields, and is actually the config used by the versioned `main()`.
+Keep model, data, training, evaluation and plotting logic out of `run.py`. Validate that the composed config loads, contains required fields, and is the config actually used.
 
 ## Versioned Result Bundle
 
@@ -280,7 +253,7 @@ Debug entrypoint: `run.py` | Command: `python run.py`
 **Author**: [Actual assistant and invocation]
 **Plan**: `__board__/plans/<plan-file>.md`
 **Result Bundle**: `__board__/reports/<report-id>/`
-**Primary Config**: `config/<version>/<case>/tiny.yaml` [record actual selected profile]
+**Primary Config**: `configs/expt/<name>.yaml` + profile `[tiny|full]` | **Commit**: `[git SHA that produced these results]`
 
 ## Experiment Card — Planned vs Actual
 
@@ -348,7 +321,7 @@ Include this section when tests or checks were required by the selected plan or 
 
 | Case | Config | Debug entrypoint | Command |
 |------|--------|------------------|---------|
-| `[case]` | `../../../config/<version>/<case>/{tiny,full}.yaml` | `../../../run.py` | `python run.py` |
+| `[case]` | `configs/expt/<name>.yaml` (+ `configs/profile/{tiny,full}.yaml`) at commit `[SHA]` | `run.py` (`EXPERIMENT`, `PROFILE`) | `python run.py` |
 
 [State repository-root working directory, environment, seeds, data scope, key debugger checkpoints and how to set CONFIG_PATH. List every case and full/tiny differences; link the fixture manifest, document weight/cache prerequisites and isolated debug output location, and report actual CUDA/MPS/CPU validation separately. Tiny execution and figure-only replay are distinct.]
 

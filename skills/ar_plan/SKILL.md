@@ -84,19 +84,12 @@ Plans should preserve the original lightweight validation structure: include uni
 
 ## Experiment Config and Debug Contract
 
-These are defaults for new Python experiments. Preserve a project's established root runner or report layout when its instructions or selected plan specify one. Adapt the same config-selected, debugger-ready design to the project's language. Code-only work needs no invented experiment scaffold.
+Follow [code style](../references/code-style.md); a project's established layout in `__board__/PROJECT.md` takes precedence. Plan, for every experiment case:
 
-
-For every distinct experiment case, plan:
-
-- A shared scientific configuration with `config/<version>/<case>/full.yaml` and `tiny.yaml`; keep experiment parameters in YAML rather than hard-coding them in Python. Define resolved profile differences and preserve full scientific settings. Tiny uses the same production pipeline and actual architecture/weights, with smaller eligible inputs and bounded work.
-- One thin version-specific implementation entrypoint under `runs/`. Use `runs/run_<version>.py` for a single case or `runs/run_<version>_<case>.py` for multiple cases. Normalize dots and hyphens in filenames to underscores. Each module must expose a no-argument `main()` callable and a module-level `CONFIG_PATH`.
-- A root-level `run.py` debugger entrypoint with a visible macro such as `VERSION = "v1"`, set to the latest version, and a builder utility `build_main(version: str)` that imports the corresponding `runs.run_<version>` or `runs.run_<version>_*` module and returns its `main()` callable.
-- A visible `CONFIG_PATH` in the version-specific module, defaulting to its tiny profile. Select full explicitly through that variable; do not create a separate runner or algorithm for each profile.
-- **No argparse rule:** The main run files (root `run.py` and every `runs/run_<version>[_<case>].py`) must not use argparse or any other command-line parsing at all. Define the run settings as visible module-level variables inside the Python file — only the config path/name and similar general variables (for example `VERSION` and `CONFIG_PATH`), never experiment parameters, which belong in YAML. To run a different experiment, open the file and edit those variables. Reason: argparse is inconvenient with a Python debugger, which should launch `run.py` with no arguments.
-- A direct root command: `python run.py`. The final debug run must be executed from the repository root, never via a `runs/...` path.
-
-Do not put model, dataset, or experiment implementation in either runner file. Keep `run.py` as the version selector/import builder and the version-specific module as a readable config-driven entrypoint. Use portable repository-relative paths and never put secrets or machine-specific absolute paths in configs.
+- the entity code it reuses or extends (`models/`, `methods/`, `data/`, `utils/<topic>/` with `structure.md` signatures) and any new entity with its `_build.py` registration;
+- one experiment file `configs/expt/<name>.yaml` (entity choices + overrides), entity YAML only for new entities, and the `tiny`/`full` profile differences; never per-version code or config copies;
+- the root `run.py` constants (`EXPERIMENT`, `PROFILE`) and the `python run.py` debug command; no argparse anywhere in the run path;
+- which existing code and configs become obsolete and are deleted by this plan.
 
 ## Expected-Figure Previews
 
@@ -183,16 +176,16 @@ After the title and metadata, write each plan in two parts:
 
 | Case | YAML config | Debug entrypoint | Shared callable | Command |
 |------|-------------|------------------|-----------------|---------|
-| `[case]` | `config/v{N}/[case]/{tiny,full}.yaml` | `run.py` → `runs/run_v{N}_[case].py::main` | `module.run_experiment(config)` | `python run.py` |
+| `[case]` | `configs/expt/<name>.yaml` + `configs/profile/{tiny,full}.yaml` | `run.py` (`EXPERIMENT`, `PROFILE`) | `pipeline.run(config)` | `python run.py` |
 
-[For a single case, use `run.py` as the debugger entrypoint and state the `VERSION` macro plus the version-specific module's `CONFIG_PATH`. List shared defaults, full/tiny differences, actual-data fixture/manifest, output isolation, supported hardware, external weights and clean-checkout prerequisites.]
+[State the `EXPERIMENT`/`PROFILE` values, the entity configs the experiment composes and its overrides. List full/tiny differences, actual-data fixture/manifest, output isolation, supported hardware, external weights and clean-checkout prerequisites.]
 
 ## Tasks
 
 - [ ] **Reuse-first implementation**: [Concrete shared modules/signatures to reuse, refactor, or add.]
   - Acceptance: [No duplicated experiment logic; focused modules and callable boundaries are verified.]
-- [ ] **Configs, fixtures and debug entrypoints**: [Exact full/tiny YAML paths, shared defaults, real-data fixture/manifest, root `run.py`, and version-specific run files.]
-  - Acceptance: [The version-specific module exposes `CONFIG_PATH` and `main()`; root `run.py` exposes the latest `VERSION`, builds the matching main function, and runs from the repository root with `python run.py`.]
+- [ ] **Configs, fixtures and debug entrypoint**: [Experiment file, any new entity YAML, profile differences, real-data fixture/manifest, `run.py` constants.]
+  - Acceptance: [`python run.py` from the repository root runs the composed config; no argparse; no per-version code or config copies; obsolete code/configs deleted.]
 - [ ] **Validation and experiment execution**: [Exact planned test/check commands and experiment command; mark any additional checks as optional.]
   - Acceptance: [Tests and checks included in the plan are run; unrelated extra verification is skipped unless explicitly requested; outputs and experiment artifacts are captured for the report.]
 - [ ] **Refresh repository map**: Create or update root `structure.md`.
@@ -217,10 +210,11 @@ After the title and metadata, write each plan in two parts:
 | File | Action | Purpose |
 |------|--------|---------|
 | `src/...` | Create / Modify / Reorganize | [Shared responsibility and why it belongs here.] |
-| `config/v{N}/[case]/{full,tiny}.yaml` | Create | [Shared scientific configuration and bounded debug profile.] |
+| `configs/expt/<name>.yaml` | Create | [Entity choices + overrides for this experiment.] |
+| `configs/{model,method,data}/<name>.yaml` | Create only for a new entity | [Entity defaults.] |
 | `tests/fixtures/[contract]/...` | Create / Reuse | [Eligible actual-data excerpt plus provenance/hash manifest.] |
-| `run.py` | Create / Update | [Root debugger version selector and main-function builder.] |
-| `runs/run_v{N}...py` | Create / Modify | [Thin version-specific config-driven main function.] |
+| `run.py` | Update | [`EXPERIMENT` / `PROFILE` constants only.] |
+| `[obsolete files]` | Delete | [Variants this plan supersedes.] |
 | `tests/...` | Create / Modify | [Unit coverage.] |
 | `structure.md` | Create / Update | [Post-implementation signature map.] |
 

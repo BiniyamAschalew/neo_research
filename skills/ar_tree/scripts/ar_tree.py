@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""One git worktree per research idea; only a short summary returns to main.
+"""Three tiers of research code: exploration worktrees -> direction branches -> main.
 
-    ar_tree.py new <slug> --question "..."     # worktree + branch + Herdr tab
-    ar_tree.py list [--json]
-    ar_tree.py summary <slug>                  # create/print the summary template path
-    ar_tree.py close <slug> dead|parked|win [--yes]
-    ar_tree.py bury <slug> --question "..." --paths p1 p2 [--yes]   # clean old main
+    ar_tree.py new <slug> --question "..." [--from main|<direction>]   # exploration worktree + Herdr tab
+    ar_tree.py close <slug> dead|parked [--yes]          # failed exploration: only its summary reaches main
+    ar_tree.py promote <slug> --new <direction> [--yes]  # it works: compacted code becomes branch dir/<direction>
+    ar_tree.py promote <slug> --into <direction> [--yes] #   ... or deepens an existing direction
+    ar_tree.py open <direction>                          # worktree on dir/<direction> (compaction, review)
+    ar_tree.py graduate <direction> [--yes]              # best, compacted version of a direction -> main
+    ar_tree.py drop <direction> [--yes]                  # direction abandoned: summary to main, branch archived
+    ar_tree.py list [--json] | summary <slug> | bury <slug> --question "..." --paths ...
 
+promote and graduate require __board__/COMPACTION.md (ar_compact) newer than any code change.
 Destructive commands are dry runs unless --yes is given.
 """
 
@@ -26,7 +30,8 @@ import sys
 
 REGISTRY = "__board__/ideas.md"
 SUMMARIES = "__board__/ideas"
-COLUMNS = ["slug", "status", "question", "branch", "base", "worktree", "tab", "pane", "created", "closed", "agent"]
+COLUMNS = ["slug", "status", "question", "branch", "base", "worktree", "tab", "pane", "created", "closed", "agent", "kind"]
+DIRECTIONS = "__board__/directions"
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 REQUIRED = ["## Question", "## Approach", "## Main results", "## Why it failed", "## Don't retry unless"]
 AGENT_LINKS = {".claude", ".agents", ".codex", "AGENTS.md"}  # ar_init links, not results
@@ -162,6 +167,8 @@ def cmd_new(args):
     tree = root.parent / f"{root.name}.ideas" / args.slug
     branch = f"idea/{args.slug}"
     args.base = args.base or git("symbolic-ref", "--short", "HEAD", cwd=root)  # the main checkout's branch
+    if not branch_exists(root, args.base) and branch_exists(root, direction_branch(args.base)):
+        args.base = direction_branch(args.base)  # --from <direction> explores deeper inside dir/<direction>
     if subprocess.run(["git", "rev-parse", "--verify", "-q", args.base], cwd=root, capture_output=True).returncode:
         raise SystemExit(f"'{args.base}' has no commits yet; commit the project's code once (keep data/results ignored), then retry.")
     base_sha = git("rev-parse", "--short", args.base, cwd=root)
@@ -169,12 +176,14 @@ def cmd_new(args):
     brief = tree / "__board__/IDEA.md"
     brief.parent.mkdir(parents=True, exist_ok=True)
     brief.write_text(f"# Idea: {args.slug}\n\n**Question**: {args.question}\n\n**Branch**: `{branch}` from `{args.base}` @ {base_sha}\n"
-                     f"\nWork only inside this worktree. When done, the mate or human runs `ar_tree close {args.slug} ...`.\n")
+                     f"\nAn exploration: work only inside this worktree. It ends as `ar_tree close {args.slug} dead|parked` "
+                     f"(summary only) or, after ar_compact, `ar_tree promote {args.slug} --new|--into <direction>`.\n")
     git("add", "__board__/IDEA.md", cwd=tree)
     git("commit", "-q", "-m", f"idea: start {args.slug}", cwd=tree)
     link_shared(tree, root)
     row = dict(slug=args.slug, status="active", question=args.question, branch=branch, base=f"{args.base}@{base_sha}",
-               worktree=str(tree), tab="", pane="", created=date.today().isoformat(), closed="", agent=args.agent)
+               worktree=str(tree), tab="", pane="", created=date.today().isoformat(), closed="", agent=args.agent,
+               kind="idea")
     if not args.no_herdr:
         created = herdr("tab", "create", "--cwd", str(tree), "--label", f"{root.name}:{args.slug}", "--no-focus")
         if created:
@@ -198,20 +207,27 @@ def cmd_list(args):
         print(json.dumps(rows, indent=2))
         return
     for row in rows:
-        print(f"{row['slug']:<28} {row['status']:<8} {row['question']}")
+        kind = row.get("kind") or "idea"
+        print(f"{kind:<10} {row['slug']:<26} {row['status']:<22} {row['branch'] or '-':<28} {row['question']}")
 
 
-def summary_path(root, slug):
-    return root / SUMMARIES / f"{slug}.md"
+def summary_path(root, slug, kind="idea"):
+    return root / (DIRECTIONS if kind == "direction" else SUMMARIES) / f"{slug}.md"
 
 
 def ensure_summary(root, row, status):
-    path = summary_path(root, row["slug"])
+    kind = row.get("kind") or "idea"
+    path = summary_path(root, row["slug"], kind)
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         archive = ARCHIVE / root.name / row["slug"]
-        path.write_text(SUMMARY_TEMPLATE.format(slug=row["slug"], status=status, today=date.today().isoformat(),
-                                                question=row["question"], archive=archive))
+        text = SUMMARY_TEMPLATE.format(slug=row["slug"], status=status, today=date.today().isoformat(),
+                                       question=row["question"], archive=archive)
+        if kind == "direction":
+            text = text.replace("# Idea:", "# Direction:").replace(f"`archive/{row['slug']}`", f"`archive/dir-{row['slug']}`")
+            text = text.replace("## Approach\n\n[2-4 lines: the mechanism tried and the concrete code/config change.]",
+                                "## Approach\n\n[The direction's thesis and the promoted ideas that built it (slugs).]")
+        path.write_text(text)
     return path
 
 
@@ -257,7 +273,8 @@ def require_on_base(root, base):
         raise SystemExit(f"Main checkout {root} is on '{current}'; check out '{base}' first so the summary lands there.")
 
 
-IDEA_ONLY = ("__board__/IDEA.md", "__board__/STATUS.md", "__board__/goal")  # never merged into main
+IDEA_ONLY = ("__board__/IDEA.md", "__board__/STATUS.md", "__board__/goal",  # per-tier bookkeeping:
+             "__board__/COMPACTION.md", "__board__/compaction")             # never merged upward
 
 
 def idea_only(path):
@@ -274,9 +291,11 @@ def win_preview(root, base, branch):
 
 
 def squash_merge(root, branch):
-    """Stage the idea branch on main (real merge, so later main changes are kept); stop on conflicts."""
-    dirty = [l for l in git("status", "--porcelain", "--untracked-files=no", cwd=root).splitlines()
-             if not l[3:].startswith(("__board__/ideas.md", "__board__/ideas/"))]  # our own registry edits
+    """Stage `branch` in the checkout `root` (real merge, so later changes there are kept); stop on conflicts."""
+    status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root, text=True,
+                            capture_output=True, check=True).stdout  # unstripped: porcelain columns matter
+    dirty = [l for l in status.splitlines()
+             if not l[3:].startswith(("__board__/ideas.md", "__board__/ideas/", "__board__/directions/"))]  # registry edits
     if dirty:
         raise SystemExit(f"Main checkout {root} has uncommitted changes; commit or stash them before a win.")
     merged = subprocess.run(["git", "merge", "--squash", branch], cwd=root, text=True, capture_output=True)
@@ -309,67 +328,254 @@ def move_raw(tree, paths, archive, main=None):
         shutil.move(str(source), str(target))
 
 
+def direction_branch(name):
+    return name if name.startswith("dir/") else f"dir/{name}"
+
+
+def branch_exists(root, branch):
+    return subprocess.run(["git", "rev-parse", "--verify", "-q", f"refs/heads/{branch}"], cwd=root,
+                          capture_output=True).returncode == 0
+
+
+def compaction_problem(root, base, branch):
+    """None when __board__/COMPACTION.md was committed after every code change on branch since base."""
+    fork = git("merge-base", base, branch, cwd=root)
+    code = git("log", "-1", "--format=%H", f"{fork}..{branch}", "--", ".", ":(exclude)__board__", cwd=root)
+    if not code:
+        return None
+    note = git("log", "-1", "--format=%H", f"{fork}..{branch}", "--", "__board__/COMPACTION.md", cwd=root)
+    if not note:
+        return "no __board__/COMPACTION.md on this branch: run ar_compact first"
+    ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", code, note], cwd=root).returncode == 0
+    return None if ancestor else "code changed after the last COMPACTION.md: rerun ar_compact"
+
+
+def check_tree(row):
+    tree = Path(row["worktree"]) if row["worktree"] else None
+    has_tree = bool(tree and tree.exists())
+    if has_tree and git("status", "--porcelain", cwd=tree):
+        raise SystemExit(f"{tree} has uncommitted changes; commit or discard them first.")
+    return tree, has_tree
+
+
+def report(plan, problems, yes):
+    """Print the plan; return True when the caller should act."""
+    if problems or not yes:
+        plan["status"] = ("fix: " + "; ".join(problems)) if problems else "dry run; rerun with --yes"
+        print(json.dumps(plan, indent=2))
+        return False
+    return True
+
+
+def retire(root, row, tree, has_tree, delete_branch, plan):
+    """After the commit: remove worktree, tab and (optionally) branch."""
+    if has_tree:
+        removed = subprocess.run(["git", "worktree", "remove", str(tree)], cwd=root, text=True, capture_output=True)
+        if removed.returncode:
+            plan["warning"] = f"committed but worktree not removed: {removed.stderr.strip()}"
+    if row["tab"]:
+        herdr("tab", "close", row["tab"])
+    if delete_branch and "warning" not in plan:
+        git("branch", "-D", row["branch"], cwd=root)
+
+
+def commit_board(root, paths, message):
+    git("add", "--", *paths, cwd=root)
+    git("commit", "-q", "-m", message, "--", *paths, cwd=root)
+
+
 def cmd_close(args):
+    """Failed or paused exploration: only the summary returns to main."""
     root = main_root()
     rows = read_rows(root)
     row = find(rows, args.slug)
     if row["status"] not in {"active", "parked"}:
         raise SystemExit(f"Idea '{args.slug}' is already {row['status']}.")
-    base = row["base"].split("@")[0] or "main"
-    tree = Path(row["worktree"]) if row["worktree"] else None
-    has_tree = bool(tree and tree.exists())
-    if has_tree and git("status", "--porcelain", cwd=tree):
-        raise SystemExit(f"{tree} has uncommitted changes; commit or discard them first.")
-    win = args.verdict == "win"
+    tree, has_tree = check_tree(row)
     summary = ensure_summary(root, row, args.verdict)
-    problems = summary_problems(summary)
     raw = ignored_paths(tree) if has_tree else []
     dest = unique(ARCHIVE / root.name / args.slug)
-    files, overlap = win_preview(root, base, row["branch"]) if win else ([], [])
-    plan = {
-        "verdict": args.verdict,
-        "tag": f"archive/{args.slug} -> {row['branch']}",
-        "summary": str(summary),
-        "summary_problems": problems,
-        "merge_to_main": {"files": files, "also_changed_on_main": overlap,
-                          "kept_with_idea": list(IDEA_ONLY)} if win else None,
-        "raw_results": ({"to_main_same_path": raw, "else_to": str(dest)} if win else {"to": str(dest), "paths": raw}) if raw else None,
-        "remove_worktree": str(tree) if has_tree else None,
-        "delete_branch": args.verdict != "parked",
-    }
-    if problems or not args.yes:
-        plan["status"] = "fill the summary, then rerun with --yes" if problems else "dry run; rerun with --yes"
-        print(json.dumps(plan, indent=2))
-        return 1 if problems and args.yes else 0
-    require_on_base(root, base)
-    if win:
-        squash_merge(root, row["branch"])  # raises before anything else changes
+    plan = {"verdict": args.verdict, "tag": f"archive/{args.slug} -> {row['branch']}", "summary": str(summary),
+            "raw_results_to": str(dest) if raw else None, "remove_worktree": str(tree) if has_tree else None,
+            "delete_branch": args.verdict != "parked"}
+    if not report(plan, summary_problems(summary), args.yes):
+        return 1 if summary_problems(summary) and args.yes else 0
     if not git("tag", "--list", f"archive/{args.slug}", cwd=root):
         git("tag", f"archive/{args.slug}", row["branch"], cwd=root)
     if raw:
-        move_raw(tree, raw, dest, main=root if win else None)
+        move_raw(tree, raw, dest)
     tab = row["tab"]
-    row.update(status={"dead": "dead", "parked": "parked", "win": "merged"}[args.verdict],
-               closed=date.today().isoformat(), worktree="", tab="", pane="")
+    row.update(status=args.verdict, closed=date.today().isoformat(), worktree="", tab="", pane="")
     write_rows(root, rows)
-    paths = [str(summary.relative_to(root)), REGISTRY]
-    git("add", "--", *paths, cwd=root)
-    message = f"ideas: close {args.slug} ({args.verdict})"
-    if win:
-        git("commit", "-q", "-m", f"{message}\n\nSquash-merged {row['branch']}: code, configs, plans and reports.", cwd=root)
-    else:
-        git("commit", "-q", "-m", message, "--", *paths, cwd=root)
-    # Only after main has the commit: remove the worktree, tab and branch.
-    if has_tree:
-        removed = subprocess.run(["git", "worktree", "remove", str(tree)], cwd=root, text=True, capture_output=True)
-        if removed.returncode:
-            plan["warning"] = f"committed but worktree not removed: {removed.stderr.strip()}"
-    if tab:
-        herdr("tab", "close", tab)
-    if args.verdict != "parked" and "warning" not in plan:
-        git("branch", "-D", row["branch"], cwd=root)
+    commit_board(root, [str(summary.relative_to(root)), REGISTRY], f"ideas: close {args.slug} ({args.verdict})")
+    retire(root, {**row, "tab": tab}, tree, has_tree, args.verdict != "parked", plan)
     plan["status"] = "done"
-    plan["backup_tag"] = f"git push origin archive/{args.slug}"
+    print(json.dumps(plan, indent=2))
+    return 0
+
+
+def merge_into_branch(root, target, source, message):
+    """Squash-merge source into branch target through a temporary worktree (or target's open worktree)."""
+    rows = read_rows(root)
+    opened = next((Path(r["worktree"]) for r in rows if r["branch"] == target and r["worktree"]), None)
+    checkout = opened if opened and opened.exists() else root.parent / f"{root.name}.ideas" / f".merge-{target.replace('/', '-')}"
+    temporary = checkout != opened
+    if temporary:
+        git("worktree", "add", "-q", str(checkout), target, cwd=root)
+    try:
+        squash_merge(checkout, source)
+        git("commit", "-q", "--allow-empty", "-m", message, cwd=checkout)
+    finally:
+        if temporary:
+            subprocess.run(["git", "worktree", "remove", "--force", str(checkout)], cwd=root, capture_output=True)
+    return opened if not temporary else None
+
+
+def cmd_promote(args):
+    """A working exploration becomes (part of) a direction branch, after compaction."""
+    if bool(args.into) == bool(args.new):
+        raise SystemExit("Give exactly one of --into <direction> or --new <direction>.")
+    root = main_root()
+    rows = read_rows(root)
+    row = find(rows, args.slug)
+    if row["status"] != "active" or (row.get("kind") or "idea") != "idea":
+        raise SystemExit(f"'{args.slug}' is not an active idea.")
+    tree, has_tree = check_tree(row)
+    name = args.new or args.into
+    target = direction_branch(name)
+    base = row["base"].split("@")[0]
+    problems = []
+    if args.new and branch_exists(root, target):
+        problems.append(f"{target} already exists; use --into {name}")
+    if args.into and not branch_exists(root, target):
+        problems.append(f"{target} does not exist; use --new {name}")
+    if not args.skip_compaction and (problem := compaction_problem(root, base, row["branch"])):
+        problems.append(problem)
+    summary = ensure_summary(root, row, f"promoted to {target}")
+    problems += summary_problems(summary)
+    raw = ignored_paths(tree) if has_tree else []
+    plan = {"promote": f"{row['branch']} -> {target}" + (f" (new, from {base})" if args.new else ""),
+            "kept_out": list(IDEA_ONLY), "summary": str(summary), "tag": f"archive/{args.slug}",
+            "raw_results_to": str(unique(ARCHIVE / root.name / args.slug)) if raw else None}
+    if not report(plan, problems, args.yes):
+        return 1 if problems and args.yes else 0
+    if args.new:
+        git("branch", target, base, cwd=root)
+    try:
+        opened = merge_into_branch(root, target, row["branch"], f"promote {args.slug} into {target}")
+    except SystemExit:
+        if args.new:
+            git("branch", "-D", target, cwd=root)
+        raise
+    git("tag", f"archive/{args.slug}", row["branch"], cwd=root)
+    if raw:
+        move_raw(tree, raw, unique(ARCHIVE / root.name / args.slug), main=opened)
+    tab = row["tab"]
+    row.update(status=f"promoted:{target}", closed=date.today().isoformat(), worktree="", tab="", pane="")
+    direction = next((r for r in rows if r["branch"] == target), None)
+    if direction is None:
+        direction = dict(slug=name[4:] if name.startswith("dir/") else name, status="active", question=args.question or row["question"],
+                         branch=target, base=f"{base}@{git('rev-parse', '--short', base, cwd=root)}", worktree="",
+                         tab="", pane="", created=date.today().isoformat(), closed="", agent=row["agent"], kind="direction")
+        rows.append(direction)
+    write_rows(root, rows)
+    commit_board(root, [str(summary.relative_to(root)), REGISTRY], f"ideas: promote {args.slug} into {target}")
+    retire(root, {**row, "tab": tab}, tree, has_tree, True, plan)
+    plan["status"] = "done"
+    print(json.dumps(plan, indent=2))
+    return 0
+
+
+def cmd_open(args):
+    """Worktree on a direction branch, for compaction before graduation or direct review."""
+    root = main_root()
+    rows = read_rows(root)
+    target = direction_branch(args.direction)
+    row = next((r for r in rows if r["branch"] == target), None)
+    if row is None or not branch_exists(root, target):
+        raise SystemExit(f"No direction {target}.")
+    tree = root.parent / f"{root.name}.dirs" / row["slug"]
+    if not tree.exists():
+        git("worktree", "add", "-q", str(tree), target, cwd=root)
+        link_shared(tree, root)
+    row["worktree"] = str(tree)
+    if not args.no_herdr and not row["tab"]:
+        created = herdr("tab", "create", "--cwd", str(tree), "--label", f"{root.name}:dir-{row['slug']}", "--no-focus")
+        if created:
+            row["tab"] = created.get("result", {}).get("tab", {}).get("tab_id", "")
+            row["pane"] = created.get("result", {}).get("root_pane", {}).get("pane_id", "")
+            if row["pane"]:
+                herdr("pane", "run", row["pane"], shlex.join(AGENTS.spec(args.agent)["interactive"]))
+    write_rows(root, rows)
+    print(json.dumps({"opened": str(tree), "branch": target}, indent=2))
+    return 0
+
+
+def direction_row(root, rows, name):
+    target = direction_branch(name)
+    row = next((r for r in rows if r["branch"] == target and r.get("kind") == "direction"), None)
+    if row is None or row["status"] != "active":
+        raise SystemExit(f"No active direction {target}.")
+    return row
+
+
+def cmd_graduate(args):
+    """The refined direction joins main: squash merge after compaction, as one commit."""
+    root = main_root()
+    rows = read_rows(root)
+    row = direction_row(root, rows, args.direction)
+    tree, has_tree = check_tree(row)
+    main_branch = git("symbolic-ref", "--short", "HEAD", cwd=root)
+    problems = []
+    if not args.skip_compaction and (problem := compaction_problem(root, main_branch, row["branch"])):
+        problems.append(problem)
+    summary = ensure_summary(root, row, f"graduated to {main_branch}")
+    problems += summary_problems(summary)
+    files, overlap = win_preview(root, main_branch, row["branch"])
+    raw = ignored_paths(tree) if has_tree else []
+    plan = {"graduate": f"{row['branch']} -> {main_branch}", "files": files, "also_changed_on_main": overlap,
+            "kept_out": list(IDEA_ONLY), "summary": str(summary), "tag": f"archive/dir-{row['slug']}",
+            "raw_results_to_main": raw, "delete_branch": not args.keep}
+    if not report(plan, problems, args.yes):
+        return 1 if problems and args.yes else 0
+    squash_merge(root, row["branch"])
+    git("tag", f"archive/dir-{row['slug']}", row["branch"], cwd=root)
+    if raw:
+        move_raw(tree, raw, unique(ARCHIVE / root.name / f"dir-{row['slug']}"), main=root)
+    tab = row["tab"]
+    row.update(status=f"graduated:{main_branch}", closed=date.today().isoformat(), worktree="", tab="", pane="")
+    write_rows(root, rows)
+    git("add", "--", str(summary.relative_to(root)), REGISTRY, cwd=root)
+    git("commit", "-q", "-m", f"graduate {row['branch']} into {main_branch}\n\nSquash-merged the compacted direction.", cwd=root)
+    retire(root, {**row, "tab": tab}, tree, has_tree, not args.keep, plan)
+    plan["status"] = "done"
+    print(json.dumps(plan, indent=2))
+    return 0
+
+
+def cmd_drop(args):
+    """An abandoned direction: summary to main, branch kept only as a tag."""
+    root = main_root()
+    rows = read_rows(root)
+    row = direction_row(root, rows, args.direction)
+    tree, has_tree = check_tree(row)
+    summary = ensure_summary(root, row, "dropped")
+    raw = ignored_paths(tree) if has_tree else []
+    dest = unique(ARCHIVE / root.name / f"dir-{row['slug']}")
+    plan = {"drop": row["branch"], "tag": f"archive/dir-{row['slug']}", "summary": str(summary),
+            "raw_results_to": str(dest) if raw else None}
+    problems = summary_problems(summary)
+    if not report(plan, problems, args.yes):
+        return 1 if problems and args.yes else 0
+    git("tag", f"archive/dir-{row['slug']}", row["branch"], cwd=root)
+    if raw:
+        move_raw(tree, raw, dest)
+    tab = row["tab"]
+    row.update(status="dropped", closed=date.today().isoformat(), worktree="", tab="", pane="")
+    write_rows(root, rows)
+    commit_board(root, [str(summary.relative_to(root)), REGISTRY], f"directions: drop {row['branch']}")
+    retire(root, {**row, "tab": tab}, tree, has_tree, True, plan)
+    plan["status"] = "done"
     print(json.dumps(plan, indent=2))
     return 0
 
@@ -412,10 +618,10 @@ def cmd_bury(args):
 def parser():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="command", required=True)
-    new = sub.add_parser("new")
+    new = sub.add_parser("new", help="start an exploration worktree")
     new.add_argument("slug")
     new.add_argument("--question", required=True)
-    new.add_argument("--base", help="Branch to start from (default: the main checkout's current branch)")
+    new.add_argument("--from", "--base", dest="base", help="main (default: the main checkout's branch) or a direction name")
     new.add_argument("--agent", default=AGENTS.DEFAULT, help="Agent started in the idea's Herdr tab: claude, codex, ... (default $AR_AGENT or claude)")
     new.add_argument("--env", help="Conda env to activate in the tab (default: current CONDA_DEFAULT_ENV)")
     new.add_argument("--no-herdr", action="store_true")
@@ -424,11 +630,30 @@ def parser():
     summ = sub.add_parser("summary")
     summ.add_argument("slug")
     summ.add_argument("--status", default="dead")
-    close = sub.add_parser("close")
+    close = sub.add_parser("close", help="end a failed or paused exploration (summary only)")
     close.add_argument("slug")
-    close.add_argument("verdict", choices=["dead", "parked", "win"])
+    close.add_argument("verdict", choices=["dead", "parked"])
     close.add_argument("--yes", action="store_true")
-    bury = sub.add_parser("bury")
+    promote = sub.add_parser("promote", help="compacted exploration -> direction branch")
+    promote.add_argument("slug")
+    promote.add_argument("--new", help="create direction branch dir/<name> from the idea's base")
+    promote.add_argument("--into", help="merge into existing direction dir/<name>")
+    promote.add_argument("--question", help="one-line thesis for a new direction (default: the idea's question)")
+    promote.add_argument("--skip-compaction", action="store_true", help="human override of the compaction gate")
+    promote.add_argument("--yes", action="store_true")
+    opener = sub.add_parser("open", help="worktree on a direction branch")
+    opener.add_argument("direction")
+    opener.add_argument("--agent", default=AGENTS.DEFAULT)
+    opener.add_argument("--no-herdr", action="store_true")
+    grad = sub.add_parser("graduate", help="compacted direction -> main")
+    grad.add_argument("direction")
+    grad.add_argument("--keep", action="store_true", help="keep the direction branch after merging")
+    grad.add_argument("--skip-compaction", action="store_true", help="human override of the compaction gate")
+    grad.add_argument("--yes", action="store_true")
+    drop = sub.add_parser("drop", help="abandon a direction (summary only)")
+    drop.add_argument("direction")
+    drop.add_argument("--yes", action="store_true")
+    bury = sub.add_parser("bury", help="summarize and remove an old experiment already on main")
     bury.add_argument("slug")
     bury.add_argument("--question", required=True)
     bury.add_argument("--paths", nargs="+", required=True)
@@ -438,8 +663,9 @@ def parser():
 
 def main():
     args = parser().parse_args()
-    handler = {"new": cmd_new, "list": cmd_list, "summary": cmd_summary, "close": cmd_close, "bury": cmd_bury}[args.command]
-    if args.command in {"new", "close", "bury"}:
+    handler = {"new": cmd_new, "list": cmd_list, "summary": cmd_summary, "close": cmd_close, "bury": cmd_bury,
+               "promote": cmd_promote, "open": cmd_open, "graduate": cmd_graduate, "drop": cmd_drop}[args.command]
+    if args.command in {"new", "close", "bury", "promote", "open", "graduate", "drop"}:
         with registry_lock(main_root()):
             return handler(args) or 0
     return handler(args) or 0

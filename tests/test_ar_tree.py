@@ -67,32 +67,71 @@ class ArTreeTests(unittest.TestCase):
         self.assertEqual((Path(os.environ["AR_ARCHIVE"]) / "proj/try-a/local/preds.npy").read_text(), "raw")
         self.assertIn("| try-a | dead |", (self.repo / "__board__/ideas.md").read_text())
 
-    def test_win_merges_code_and_results_not_bookkeeping(self):
-        work = self.start("try-b")
-        (self.repo / "other.py").write_text("main moved on\n")  # main changed after the idea branched
-        sh("git", "add", "other.py", cwd=self.repo)
-        sh("git", "commit", "-q", "-m", "main work", cwd=self.repo)
-        self.fill_summary("try-b")
-        self.tree("close", "try-b", "win", "--yes")
-        self.assertEqual((self.repo / "model.py").read_text(), "x = 2\n")
-        self.assertEqual((self.repo / "other.py").read_text(), "main moved on\n")
-        self.assertEqual((self.repo / "__board__/reports/r.md").read_text(), "big report\n")
-        self.assertEqual((self.repo / "local/preds.npy").read_text(), "raw")
-        self.assertFalse((self.repo / "__board__/IDEA.md").exists())
-        self.assertEqual(sh("git", "status", "--porcelain", cwd=self.repo), "")
-        self.assertIn("| try-b | merged |", (self.repo / "__board__/ideas.md").read_text())
+    def compact(self, work):
+        (work / "__board__/COMPACTION.md").write_text("# Compaction\n**Parity**: equal\n")
+        sh("git", "add", "__board__/COMPACTION.md", cwd=work)
+        sh("git", "commit", "-q", "-m", "compact", cwd=work)
 
-    def test_win_conflict_changes_nothing(self):
+    def test_promote_requires_compaction_then_builds_direction(self):
+        work = self.start("try-b")
+        self.fill_summary("try-b")
+        gated = self.tree("promote", "try-b", "--new", "speedups", "--yes", check=False)
+        self.assertNotEqual(gated.returncode, 0)
+        self.assertIn("ar_compact", gated.stdout)
+        self.compact(work)
+        self.tree("promote", "try-b", "--new", "speedups", "--yes")
+        self.assertFalse(work.exists())
+        self.assertEqual((self.repo / "model.py").read_text(), "x = 1\n")             # main untouched
+        self.assertEqual(sh("git", "show", "dir/speedups:model.py", cwd=self.repo), "x = 2\n")
+        self.assertIn("__board__/reports/r.md", sh("git", "ls-tree", "-r", "--name-only", "dir/speedups", cwd=self.repo))
+        files = sh("git", "ls-tree", "-r", "--name-only", "dir/speedups", cwd=self.repo)
+        self.assertNotIn("COMPACTION.md", files)
+        self.assertNotIn("IDEA.md", files)
+        registry = (self.repo / "__board__/ideas.md").read_text()
+        self.assertIn("promoted:dir/speedups", registry)
+        self.assertIn("| speedups | active |", registry)
+        self.assertEqual(sh("git", "status", "--porcelain", cwd=self.repo), "")
+        # deepen the direction, then graduate it to main
+        deeper = self.tree("new", "try-b2", "--question", "more", "--from", "speedups", "--no-herdr")
+        work2 = self.repo.parent / "proj.ideas/try-b2"
+        self.assertEqual((work2 / "model.py").read_text(), "x = 2\n")
+        (work2 / "model.py").write_text("x = 3\n")
+        sh("git", "commit", "-q", "-am", "deeper", cwd=work2)
+        self.compact(work2)
+        self.fill_summary("try-b2")
+        self.tree("promote", "try-b2", "--into", "speedups", "--yes")
+        opened = self.tree("open", "speedups", "--no-herdr")
+        dwork = self.repo.parent / "proj.dirs/speedups"
+        self.assertTrue(dwork.exists())
+        gated = self.tree("graduate", "speedups", "--yes", check=False)
+        self.assertIn("ar_compact", gated.stdout)
+        self.compact(dwork)
+        summary = self.repo / "__board__/directions/speedups.md"
+        summary.parent.mkdir(parents=True, exist_ok=True)
+        summary.write_text("## Question\nq\n## Approach\na\n## Main results\n| a |\n|---|\n| 1 |\n## Why it failed\nDid not\n## Don't retry unless\nd\n")
+        result = self.tree("graduate", "speedups", "--yes", check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr + sh("git", "status", "--porcelain", "--untracked-files=no", cwd=self.repo))
+        self.assertEqual((self.repo / "model.py").read_text(), "x = 3\n")
+        self.assertFalse((self.repo / "__board__/COMPACTION.md").exists())
+        self.assertFalse(dwork.exists())
+        self.assertIn("archive/dir-speedups", sh("git", "tag", cwd=self.repo))
+        self.assertNotIn("dir/speedups", sh("git", "branch", cwd=self.repo))
+        self.assertEqual(sh("git", "status", "--porcelain", cwd=self.repo), "")
+
+    def test_promote_conflict_changes_nothing(self):
         work = self.start("try-d")
-        (self.repo / "model.py").write_text("x = 9\n")  # same file changed on main
-        sh("git", "commit", "-q", "-am", "main edit", cwd=self.repo)
+        self.compact(work)
         self.fill_summary("try-d")
-        result = self.tree("close", "try-d", "win", "--yes", check=False)
+        self.tree("promote", "try-d", "--new", "dirx", "--yes")
+        work2 = self.start("try-e")                                   # from main, edits model.py too
+        (work2 / "model.py").write_text("x = 7\n")
+        sh("git", "commit", "-q", "-am", "conflicting", cwd=work2)
+        self.compact(work2)
+        self.fill_summary("try-e")
+        result = self.tree("promote", "try-e", "--into", "dirx", "--yes", check=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("model.py", result.stdout + result.stderr)
-        self.assertEqual((self.repo / "model.py").read_text(), "x = 9\n")
-        self.assertTrue(work.exists())
-        self.assertNotIn("archive/try-d", sh("git", "tag", cwd=self.repo))
+        self.assertTrue(work2.exists())
+        self.assertEqual(sh("git", "show", "dir/dirx:model.py", cwd=self.repo), "x = 2\n")
 
     def test_dirty_worktree_blocks_close(self):
         work = self.start("try-c")

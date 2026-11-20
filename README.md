@@ -29,8 +29,21 @@ Slack:         "my-project/cosine-lr: plan ready for review" + Experiment Card
 You:           edit the card if needed, tell the mate "approved"
 Mate:          idea agent runs ar_dev through notify_run.py (logs to this project's W&B)
 Slack:         run finished + duration, then "experiment done" + Planned vs Actual card + tracking link
-You -> mate:   "close it as dead" -> only the summary returns to main (or "win" -> code + results merged)
+You -> mate:   failed: "close it as dead" -> only its summary returns to main
+               works:  "compact and promote it as a new direction" -> ar_compact, then branch dir/schedules
+Later:         more explorations --from schedules; when the direction is mature: open, ar_compact, graduate -> main
 ```
+
+## Branch model: keep main small
+
+```text
+main            only the best, compacted, paper-worthy code + summaries of everything tried
+ ├─ dir/<name>  a working direction (one per trend: dir/context-compression, dir/ensembling, ...)
+ │   └─ worktree  explorations going deeper in that direction
+ └─ worktree      new explorations from main
+```
+
+Failed explorations leave only a summary (`__board__/ideas/`), never code. Each move up (worktree → direction → main) is gated by `ar_compact`: keep only what the result needs, rewrite it shorter and faster with identical results, prove parity. All tiers follow [code style](skills/references/code-style.md): reuse first, one home per entity (`models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries), hierarchical YAML configs, one `run.py` with no argparse, and a `structure.md` of every signature.
 
 `ar_mate [agent]` puts the mate rules in the agent's standing instructions (Claude: system prompt; Codex: developer instructions), so it stays the mate through long sessions. Mate and idea agents can differ, e.g. a Claude mate driving Codex ideas. Approvals default to Claude auto mode / Codex "Approve for me" (risky actions still ask); `ar_mate --ask` keeps normal prompts. It asks before anything irreversible (full runs, closes, merges, pushes) and never edits code itself.
 
@@ -41,7 +54,8 @@ You -> mate:   "close it as dead" -> only the summary returns to main (or "win" 
 | `ar_metaplan` | sharpen an idea: prior evidence, theory, decisive design |
 | `ar_plan` | write a plan that opens with an editable 20-line Experiment Card |
 | `ar_dev` | implement and run it; report opens with Planned vs Actual |
-| `ar_tree` | one worktree per idea; a failed idea returns only a summary, a winning one merges code + results |
+| `ar_tree` | explorations (worktrees) → directions (`dir/*` branches) → main; failures return only a summary |
+| `ar_compact` | before each promotion: same results, less and cleaner code, with parity proof |
 | `ar_mate` | first mate coordinating all ideas of a project |
 | `ar_goal` | overnight one-change-at-a-time tuning loop with a sealed test |
 | `ar_notify` | Slack text message when a run ends |

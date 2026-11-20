@@ -38,10 +38,11 @@ Use the AutoResearch command names:
 | `/ar_note <topic>` | `/ar_note optimizer comparison` | Write a technical note under `__board__/notes/` |
 | `/ar_notify [report]` | `/ar_notify __board__/reports/v3/v3.md` | Slack text summary of a finished run |
 | `/ar_tree new\|close <slug>` | `/ar_tree new head-swap` | One worktree per idea; only a summary returns to main |
+| `/ar_compact [scope]` | `/ar_compact idea x into dir/y` | Same results, less code, before promote/graduate |
 | `/ar_mate [request]` | `/ar_mate status` | First mate coordinating idea worktrees in Herdr |
 | `/ar_goal [goal.yaml]` | `/ar_goal` | Overnight one-change-at-a-time improvement loop |
 
-Codex uses matching skills instead of slash commands: `$ar_plan`, `$ar_dev`, `$ar_note`, `$ar_tree`, `$ar_mate`, `$ar_goal` and `$ar_notify`.
+Codex uses matching skills instead of slash commands: `$ar_plan`, `$ar_dev`, `$ar_note`, `$ar_tree`, `$ar_compact`, `$ar_mate`, `$ar_goal` and `$ar_notify`.
 
 ## Python Environment
 

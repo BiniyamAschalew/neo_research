@@ -1,42 +1,50 @@
 ---
 name: ar_tree
-description: Manage one git worktree per research idea. Start an idea in its own branch, worktree and Herdr tab; close it as dead or parked so that only a short summary (approach, main results, why it failed, when to retry) returns to main, or as win so its code, configs, plans and reports are merged into main with the summary. Also buries old experiments already on main.
+description: Manage the three tiers of research code. Explorations live in git worktrees; ideas that work become direction branches (dir/<name>) for deeper exploration; only the best, compacted version of a direction graduates to main. Failed explorations and dropped directions return only a short summary to main. Use to start, close, promote, open, graduate or drop ideas and directions, and to bury old experiments on main.
 ---
 
 # AR Tree
 
-The tool `scripts/ar_tree.py` (relative to this skill, following links) does the git and Herdr work deterministically. You write the summary; the tool refuses to close until it is filled.
+```text
+main            refined, paper-worthy code + every summary (__board__/ideas/, __board__/directions/)
+ ├─ dir/<name>  a direction that works (e.g. dir/context-compression, dir/ensembling), explored deeper
+ │   └─ worktree idea/<slug>  an exploration branched from the direction
+ └─ worktree idea/<slug>      an exploration branched from main
+```
+
+Every move up (worktree → direction, direction → main) goes through `ar_compact` first: same results, less and cleaner code. Unrelated trends are separate directions; never mix them in one branch.
+
+The tool `scripts/ar_tree.py` (relative to this skill, following links) does the git and Herdr work; you write summaries and run compaction. Destructive commands are dry runs until `--yes`, which needs the human's approval.
 
 ```bash
 T=.agents/skills/ar_tree/scripts/ar_tree.py
-python $T new <slug> --question "<one-line question>" [--agent codex] [--env <conda-env>]
-python $T list
-python $T close <slug> dead|parked|win          # dry run: shows tag, moves, merge, removals
-python $T close <slug> dead|parked|win --yes    # act
-python $T bury <slug> --question "..." --paths <old dirs/files> [--yes]
+python $T new <slug> --question "..." [--from main|<direction>] [--agent codex]   # exploration worktree + tab
+python $T close <slug> dead|parked [--yes]          # failed/paused: summary only reaches main
+python $T promote <slug> --new <direction> [--yes]   # works: becomes dir/<direction> (after ar_compact)
+python $T promote <slug> --into <direction> [--yes]  # deepens an existing direction (after ar_compact)
+python $T open <direction>                           # worktree ../<project>.dirs/<direction> for compaction/review
+python $T graduate <direction> [--yes]               # best version -> main (after ar_compact in the opened worktree)
+python $T drop <direction> [--yes]                   # abandoned direction: summary only, branch archived as a tag
+python $T list [--json]
+python $T bury <slug> --question "..." --paths <old dirs/files> [--yes]   # clean old experiments off main
 ```
 
-`<slug>` is a short lowercase-hyphen name (`spectral-warmstart`). Run every command from the main checkout or any idea worktree.
+## Before planning anything
 
-## Layout
+Read every `__board__/ideas/*.md` and `__board__/directions/*.md` in the main checkout. Do not repeat a failed approach unless its "Don't retry unless" condition now holds; say which. Decide with the human where a new exploration starts: from main for a new trend, from `<direction>` to go deeper in one.
 
-- Worktree `../<project>.ideas/<slug>` on branch `idea/<slug>`; the same conda env serves every worktree.
-- Main keeps `__board__/ideas.md` (registry) and `__board__/ideas/<slug>.md` (one summary per closed idea).
-- The idea's plans, reports and notes live in its own `__board__/` and leave with the branch.
-- `new` opens a Herdr tab in the worktree and starts the agent with `__board__/IDEA.md` as its brief (skipped when Herdr is absent).
+## Summaries
 
-## Before planning in any idea
+Every exit writes one summary in the main checkout: `__board__/ideas/<slug>.md` (close/promote) or `__board__/directions/<name>.md` (graduate/drop). The dry run creates the template; fill it from the reports: question, approach (2-4 lines), setup, at most 5 main result rows with numbers versus baseline, why it failed (or "Did not fail"), don't retry unless, reusable pieces. Under 40 lines. The tool refuses to act on an unfilled summary.
 
-Read every `__board__/ideas/*.md` in the main checkout. Do not propose an approach a summary marks as failed unless its "Don't retry unless" condition now holds; say which.
+## What each command does on `--yes`
 
-## Closing
+- **close**: tags `archive/<slug>`, moves git-ignored raw results to `~/ar_archive/<project>/<slug>/`, commits the summary and registry to main, removes worktree, tab and (except `parked`) branch.
+- **promote**: requires `__board__/COMPACTION.md` committed after every code change on the idea branch (`--skip-compaction` is a human override). Squash-merges the idea into `dir/<direction>` (created from the idea's base with `--new`), keeping bookkeeping (`IDEA.md`, `STATUS.md`, `goal/`, `COMPACTION.md`, `compaction/`) out; stops on merge conflicts without changing anything. Then summary to main, tag, retire the worktree.
+- **graduate**: same compaction gate on the direction branch (compact it in the `open` worktree), then squash-merges it into main as one commit with code, configs, plans and reports, keeps bookkeeping out, moves raw results into main, tags `archive/dir-<direction>` and deletes the branch (`--keep` to keep it).
+- **drop**: summary to main, tag `archive/dir-<direction>`, branch and worktree removed.
 
-1. Decide the verdict with the human: `dead` (does not work), `parked` (keep branch, drop worktree), `win` (merge code and results into main).
-2. Run `close <slug> <verdict>` once to create the summary template and see the plan.
-3. Fill `__board__/ideas/<slug>.md` from the idea's reports: question, approach (2-4 lines), setup, at most 5 main result rows with numbers versus baseline, why it failed (evidence, not guesses), don't retry unless, reusable pieces. Keep it under 40 lines.
-4. Show the human the summary and dry-run plan; run `--yes` only after their approval.
-
-On `--yes` the tool: tags `archive/<slug>` (the full branch stays recoverable). For `dead`/`parked` it commits only the summary and registry to main and moves git-ignored raw results to `~/ar_archive/<project>/<slug>/`. For `win` it squash-merges the branch into main as one commit (code, configs, plans, reports, notes, plus the summary), keeping the idea's `IDEA.md`, `STATUS.md` and `goal/` state out of main and preserving changes main made since the idea started; git-ignored raw results move into main at the same paths. If main changed the same lines, it stops with the conflicting files and changes nothing: run `git merge <base>` in the idea worktree, resolve, commit, and close again. Main must be on its base branch with no uncommitted tracked changes. Then it removes the worktree and Herdr tab, and deletes the branch (kept for `parked`). Main must be checked out on its base branch. Pushing the tag (`git push origin archive/<slug>`) needs explicit human instruction.
+The main checkout stays on main with no uncommitted tracked changes (registry edits excepted). Pushing tags (`git push origin --tags`) or branches needs explicit human instruction.
 
 ## Burying old main content
 
