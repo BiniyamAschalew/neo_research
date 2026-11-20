@@ -161,7 +161,7 @@ Finally write a one-line description of the change to {STATE}/change.txt."""
 
 class Tracker:
     """One W&B run per loop: val metric and best-so-far as curves over iterations, a final table.
-    Inactive unless wandb is installed and WANDB_PROJECT is set in __board__/project.env."""
+    Inactive unless wandb is installed and WANDB_URL is set in __board__/project.env."""
 
     def __init__(self, cfg):
         self.run = None

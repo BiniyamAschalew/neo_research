@@ -38,13 +38,14 @@ class SlackNotifyTests(unittest.TestCase):
     def test_key_file_parsing(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "slack.env"
-            path.write_text("# c\nSLACK_WEBHOOK_URL='https://hooks.slack.com/x'\nTRACKING_URL=https://wandb.ai/me/p\nWANDB_PROJECT=p\n")
+            path.write_text("# c\nSLACK_WEBHOOK_URL='https://hooks.slack.com/x'\nWANDB_URL=https://wandb.ai/me/p/workspace?nw=1\n")
             keys = SLACK.load_keys(path)
             self.assertEqual(keys["SLACK_WEBHOOK_URL"], "https://hooks.slack.com/x")
-            self.assertEqual(SLACK.tracking_env(keys), {"WANDB_PROJECT": "p"})
-            self.assertIn("Tracking: https://wandb.ai/me/p", SLACK.notify("t", "x", keys=keys, dry_run=True)["message"])
-            path.write_text("WANDB_ENTITY=me\nWANDB_PROJECT=p\n")
-            self.assertEqual(SLACK.load_keys(path)["TRACKING_URL"], "https://wandb.ai/me/p")
+            self.assertEqual(SLACK.tracking_env(keys), {"WANDB_ENTITY": "me", "WANDB_PROJECT": "p"})
+            self.assertIn("W&B: https://wandb.ai/me/p/workspace?nw=1", SLACK.notify("t", "x", keys=keys, dry_run=True)["message"])
+            path.write_text("WANDB_URL=https://lab.wandb.io/team/proj\n")
+            self.assertEqual(SLACK.tracking_env(SLACK.load_keys(path)),
+                             {"WANDB_ENTITY": "team", "WANDB_PROJECT": "proj", "WANDB_BASE_URL": "https://lab.wandb.io"})
 
     def test_worktree_uses_main_checkout_settings(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -8,7 +8,7 @@ Claude: `/ar_<name>`. Codex: `$ar_<name>`. Scripts run from the project root; `.
 cd neo_research && ./ar_init ../my-project      # also upgrades an older setup; --dry-run to preview, --untrack for old committed links
 ```
 
-Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conventions) and `__board__/project.env` (never committed: this project's `SLACK_WEBHOOK_URL`, `WANDB_ENTITY`, `WANDB_PROJECT`).
+Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conventions) and `__board__/project.env` (never committed: this project's `SLACK_WEBHOOK_URL` and `WANDB_URL`).
 
 ## Typical flow
 
@@ -57,7 +57,7 @@ Inside an idea worktree only. Each iteration: fresh agent → one change in `all
 python .agents/skills/ar_notify/scripts/notify_run.py --name "v3 full" -- python run.py   # always notifies at the end
 python .agents/skills/ar_notify/scripts/slack_notify.py --report __board__/reports/v3/v3.md
 ```
-`notify_run.py` posts status, exit code, duration and the new report card (or the output tail) to this project's channel when the run ends, passes `WANDB_*` from `project.env` to the run, and returns the run's exit code. Every message ends with `TRACKING_URL`. Without a webhook it prints `skipped`.
+`notify_run.py` posts status, exit code, duration and the new report card (or the output tail) to this project's channel when the run ends, passes the W&B entity/project from `WANDB_URL` to the run, and returns the run's exit code. Every message ends with the `WANDB_URL` link. Without a webhook it prints `skipped`.
 
 ## Existing skills (changed)
 

@@ -1,6 +1,6 @@
 # Experiment tracking (W&B) conventions
 
-Read when planning or implementing code that logs to W&B (or a W&B-compatible tracker such as CoreWeave). The project's `__board__/project.env` supplies `WANDB_ENTITY`/`WANDB_PROJECT`; runs launched through `notify_run.py` receive them automatically. The dashboard must be readable by someone who never saw the code.
+Read when planning or implementing code that logs to W&B (or a W&B-compatible tracker such as CoreWeave). The project's `__board__/project.env` supplies `WANDB_URL` (`https://wandb.ai/<entity>/<project>`), from which `WANDB_ENTITY`/`WANDB_PROJECT` are derived; runs launched through `notify_run.py` receive them automatically. The dashboard must be readable by someone who never saw the code.
 
 ## The one rule: a chart needs an x-axis
 

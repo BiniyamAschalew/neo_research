@@ -29,4 +29,4 @@ Sends the report title and its top card (everything before `======`), with markd
 
 ## Keys
 
-Per project, in the main checkout's `__board__/project.env` (created by `ar_init`, never committed, shared by idea worktrees): `SLACK_WEBHOOK_URL`, `WANDB_ENTITY`, `WANDB_PROJECT` (passed to runs launched through `notify_run.py` and `ar_goal`; `https://wandb.ai/<entity>/<project>` is appended to every message), optional `WANDB_BASE_URL` and `TRACKING_URL` override. Never print the webhook or copy it elsewhere.
+Per project, in the main checkout's `__board__/project.env` (created by `ar_init`, never committed, shared by idea worktrees): `SLACK_WEBHOOK_URL` and `WANDB_URL` (the W&B project page `https://wandb.ai/<entity>/<project>`; its entity, project and, for dedicated servers, base URL are passed as `WANDB_ENTITY`/`WANDB_PROJECT`/`WANDB_BASE_URL` to runs launched through `notify_run.py` and `ar_goal`, and the link is appended to every message). Never print the webhook or copy it elsewhere.

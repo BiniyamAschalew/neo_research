@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 
 PROJECT_ENV = "__board__/project.env"
@@ -34,7 +35,7 @@ def env_file(cwd=None):
 
 
 def load_keys(path=None):
-    """SLACK_WEBHOOK_URL, TRACKING_URL, WANDB_ENTITY, WANDB_PROJECT ... for this project."""
+    """SLACK_WEBHOOK_URL and WANDB_URL (plus the entity/project/server derived from it) for this project."""
     path = Path(path) if path else env_file()
     keys = {"_file": str(path)}
     if path.exists():
@@ -44,16 +45,26 @@ def load_keys(path=None):
                 name, value = line.split("=", 1)
                 keys[name.strip()] = value.strip().strip('"').strip("'")
     keys.setdefault("SLACK_WEBHOOK_URL", "")
-    if not keys.get("TRACKING_URL") and keys.get("WANDB_ENTITY") and keys.get("WANDB_PROJECT"):
-        host = (keys.get("WANDB_BASE_URL") or "https://wandb.ai").rstrip("/")
-        keys["TRACKING_URL"] = f"{host}/{keys['WANDB_ENTITY']}/{keys['WANDB_PROJECT']}"
-    keys.setdefault("TRACKING_URL", "")
+    keys["WANDB_URL"] = keys.get("WANDB_URL") or keys.get("TRACKING_URL", "")  # TRACKING_URL: older name
+    keys.update({k: v for k, v in parse_wandb_url(keys["WANDB_URL"]).items() if not keys.get(k)})
     return keys
+
+
+def parse_wandb_url(url):
+    """https://wandb.ai/<entity>/<project>[/...] -> WANDB_ENTITY, WANDB_PROJECT (+ WANDB_BASE_URL off wandb.ai)."""
+    parts = urllib.parse.urlparse(url)
+    segments = [s for s in parts.path.split("/") if s]
+    if not parts.netloc or len(segments) < 2:
+        return {}
+    found = {"WANDB_ENTITY": segments[0], "WANDB_PROJECT": segments[1]}
+    if parts.netloc not in {"wandb.ai", "www.wandb.ai"}:  # dedicated / CoreWeave-hosted server
+        found["WANDB_BASE_URL"] = f"{parts.scheme}://{parts.netloc}"
+    return found
 
 
 def tracking_env(keys):
     """W&B variables to pass to experiment processes, so runs log to this project's workspace."""
-    return {k: v for k, v in keys.items() if k.startswith("WANDB_") and v}
+    return {k: v for k, v in keys.items() if k.startswith("WANDB_") and k != "WANDB_URL" and v}
 
 
 def text_table(lines):
@@ -117,8 +128,8 @@ def mark_sent(path):
 def notify(title, text, keys=None, dry_run=False):
     keys = keys or load_keys()
     message = f"*{title}*\n{text}".strip()
-    if keys.get("TRACKING_URL"):
-        message += f"\nTracking: {keys['TRACKING_URL']}"
+    if keys.get("WANDB_URL"):
+        message += f"\nW&B: {keys['WANDB_URL']}"
     if len(message) > MAX_TEXT:
         message = message[:MAX_TEXT - 4] + "\n…"
     if dry_run:
