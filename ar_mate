@@ -13,6 +13,7 @@ Other installed agent CLIs start with the rules in their first prompt only.
 """
 
 import argparse
+import importlib.machinery
 import importlib.util
 import os
 from pathlib import Path
@@ -52,6 +53,13 @@ def main():
     if not (root / ".agents/skills/ar_mate").exists():
         raise SystemExit(f"{root} is not set up; run: ar_init {root}")
     os.chdir(root)
+    loader = importlib.machinery.SourceFileLoader("ar_init", str(NEO / "ar_init"))
+    init_spec = importlib.util.spec_from_loader("ar_init", loader)
+    init = importlib.util.module_from_spec(init_spec)
+    loader.exec_module(init)
+    refreshed = [line for line in init.link_agents(root) if not line.startswith(("ok", "keep"))]
+    if refreshed:  # new or removed shared skills after a `git pull` of neo_research
+        print("Refreshed links:\n  " + "\n  ".join(refreshed))
     if subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"], capture_output=True).returncode:
         print("Note: no commits yet; ideas (ar_tree new) need a first commit of the project's code.")
     if not args.no_watch:

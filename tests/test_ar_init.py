@@ -125,6 +125,16 @@ class ArInitTests(unittest.TestCase):
     def test_repo_without_commits_gets_a_reminder(self):
         log = "\n".join(AR_INIT.init(self.project))
         self.assertIn("no commits yet", log)
+    def test_refresh_adds_new_shared_skills_to_merged_folders(self):
+        p = self.project
+        (p / ".agents/skills/my_local").mkdir(parents=True)
+        (p / ".agents/skills/my_local/SKILL.md").write_text("project-only")
+        (p / ".agents/skills/ar-removed").symlink_to(NEO / "skills/does-not-exist")   # dangling old link
+        AR_INIT.link_agents(p)
+        self.assertEqual((p / ".agents/skills/my_local/SKILL.md").read_text(), "project-only")
+        self.assertTrue((p / ".agents/skills/ar_branch/SKILL.md").exists())
+        self.assertFalse(os.path.lexists(p / ".agents/skills/ar-removed"))
+
 
 if __name__ == "__main__":
     unittest.main()

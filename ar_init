@@ -125,7 +125,9 @@ class Setup:
             if path.is_symlink():
                 self.remove(path)
             return self.link(path, target)
-        if not self.upgrade:
+        if not self.upgrade:  # refresh mode (ar_mate, ar_tree): only add missing shared entries
+            if path.is_dir() and target.is_dir():
+                return self.merge(path, target)
             return self.note("keep", path, "(real, left as is)")
         if self.from_neo(path):
             self.note("replace", path, f"-> {target}  (shared copy; backed up)")
@@ -143,8 +145,9 @@ class Setup:
         for entry in sorted(folder.iterdir()):
             if entry.name in JUNK or entry.name in shared_names:
                 continue
-            if self.from_neo(entry):  # e.g. a link to a skill that neo no longer has
-                self.note("remove", entry, "(stale shared entry)")
+            stale_link = entry.is_symlink() and not entry.exists()
+            if (self.upgrade and self.from_neo(entry)) or (stale_link and self.from_neo(entry)):
+                self.note("remove", entry, "(stale shared entry)")  # e.g. a skill neo no longer has
                 self.remove(entry)
             else:
                 self.note("keep", entry, "(project-only)")
@@ -217,7 +220,9 @@ class Setup:
 
 
 def link_agents(project, replace=False, dry_run=False, log=None, settings_target=None):
-    """Links only, never migrating or replacing real files. Used by ar_tree for new worktrees."""
+    """Refresh mode: add missing links and drop dangling ones, never replacing real files.
+    Used by ar_tree for new worktrees and by ar_mate on every start, so a `git pull` of
+    neo_research reaches every project without rerunning ar_init."""
     return Setup(project, dry_run, upgrade=False, settings_target=settings_target, log=log).agents()
 
 

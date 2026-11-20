@@ -85,6 +85,11 @@ def check(root, state, send=True):
     return out
 
 
+def git_head(path):
+    result = subprocess.run(["git", "-C", str(path), "rev-parse", "HEAD"], text=True, capture_output=True)
+    return result.stdout.strip()
+
+
 def running(pid_path):
     try:
         pid = int(pid_path.read_text())
@@ -119,6 +124,8 @@ def main():
     if not args.once:
         pid_path.write_text(str(os.getpid()))
     state = json.loads(state_path.read_text()) if state_path.exists() else {"files": {}, "agents": {}, "started": False}
+    neo = HERE.parents[2]  # scripts/ -> ar_mate/ -> skills/ -> neo_research/
+    version = git_head(neo)
     print(f"watching {root.name} ideas every {args.interval}s; Slack settings: {SLACK.env_file(root)}", flush=True)
     while True:
         check(root, state)
@@ -126,6 +133,9 @@ def main():
         if args.once:
             return
         time.sleep(args.interval)
+        if git_head(neo) != version:  # neo_research was updated (git pull): restart on the new code
+            print("neo_research updated; restarting watcher", flush=True)
+            os.execv(sys.executable, [sys.executable, str(Path(__file__).resolve()), "--interval", str(args.interval)])
 
 
 if __name__ == "__main__":

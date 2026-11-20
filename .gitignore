@@ -2,3 +2,5 @@ __board__/notes/local/
 **/__pycache__/
 **/.pytest_cache/
 .claude/*.lock
+.DS_Store
+__pycache__/
