@@ -48,7 +48,7 @@ Work in the active project (or idea worktree). Read [board conventions](../refer
 - **Delete**: [obsolete code and configs]
 - **Run**: `run.py` with `EXPERIMENT = "<name>"`, `PROFILE = "tiny"`; command `python .agents/skills/ar_notify/scripts/notify_run.py -- python run.py`
 - **Fixture / devices / weights**: [...]
-- **W&B**: [group, run names, curves and their x-axis, summary metrics, tables]
+- **W&B**: [group, run names; for training runs: train/val quantities logged during training with `log_every`/`eval_every` and the step axis; summary metrics; final tables]
 
 ## Tasks
 - [ ] [Task] — Acceptance: [observable result]

@@ -30,6 +30,35 @@ run.log({"q4_mechanism/results": table,
 run.summary["q4_mechanism/same_minus_cross_G"] = -0.004
 ```
 
+## Training runs: curves during, tables at the end
+
+Any run that trains or optimizes (a model, a probe, a policy, an explainer) logs its progress **while it runs**, not only its final numbers. A dashboard of a training run must show how it got there: is the loss still falling, did validation diverge from train, did the learning rate or gradients misbehave.
+
+1. **Axis**: the optimizer step. `define_metric("train/step")` and `define_metric("*", step_metric="train/step")`; log `epoch` as a float (`step / steps_per_epoch`) alongside it so both axes are available.
+2. **Train curves, often**: `train/loss` plus the method's own quantities (accuracy, KL, reconstruction, reward, sparsity, ...) every `log_every` optimizer steps, averaged over that window. Choose `log_every` so a full run gives roughly 100-1000 points (per batch for short runs); never once per epoch only when a run has few epochs.
+3. **Eval curves during training**: `val/loss` and the decision metric on the validation split every `eval_every` steps (at least ~10 points per run, plus the step-0 value before training). The test split is evaluated once at the end, never as a curve.
+4. **Diagnostics**: `optimizer/lr`, `train/grad_norm` (before clipping), and throughput (`timing/samples_per_second`) at the same cadence as the train curves.
+5. **At the end**: final and best values in `run.summary` (`test/accuracy`, `val/best_accuracy`, `val/best_step`), and the run's final results as one `wandb.Table` (one row per split × metric). Results across seeds or cases go in the analysis run's tables as above.
+
+`log_every` and `eval_every` live in the config (`tracking:` section), smaller in the tiny profile so a tiny run still draws several points per curve.
+
+```python
+run.define_metric("train/step")
+run.define_metric("*", step_metric="train/step")
+for step, batch in enumerate(batches, start=1):
+    loss, stats = train_step(model, batch)           # stats: method-specific quantities
+    window.add(loss=loss, **stats)
+    if step % cfg["log_every"] == 0:
+        run.log({"train/step": step, "epoch": step / steps_per_epoch, **window.mean("train/"),
+                 "optimizer/lr": scheduler.get_last_lr()[0], "train/grad_norm": grad_norm}); window.reset()
+    if step % cfg["eval_every"] == 0 or step == total_steps:
+        run.log({"train/step": step, **evaluate(model, val_loader, prefix="val/")})
+test = evaluate(model, test_loader, prefix="test/")
+run.summary.update(test)
+run.log({"results/final": wandb.Table(columns=["split", "metric", "value"],
+                                      data=[[k.split("/")[0], k.split("/")[1], v] for k, v in {**last_val, **test}.items()])})
+```
+
 ## Benchmarks: models × datasets × seeds
 
 Benchmark results always go to W&B as tables (CSV stays the published backing data). Log, in one `benchmark` run grouped with the plan:
