@@ -135,6 +135,8 @@ def read_rows(root):
     for line in path.read_text().splitlines()[2:]:
         if line.startswith("| ") and not line.startswith("|---"):
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if cells[0] == "slug":  # the table header
+                continue
             rows.append(dict(zip(COLUMNS, cells + [""] * (len(COLUMNS) - len(cells)))))
     return rows
 
@@ -183,7 +185,8 @@ def write_tracker(root, rows):
                 out.append(f"  - worktree `{r['branch']}`: {r['question']}" + (f" ({extra})" if extra else ""))
         return out
 
-    lines += ideas_from(main)
+    from_main = ideas_from(main)
+    lines += (["- candidate ideas started from main:"] + from_main) if from_main else []
     active = [b for b in branches if b["status"] == "active"]
     lines += ["", f"## Branches ({len(active)} active, limit {MAX_BRANCHES})", ""]
     for b in active:

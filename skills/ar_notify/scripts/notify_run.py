@@ -70,21 +70,30 @@ def main():
         parser.error("give the command after --")
     started = time.time()
     tail = deque(maxlen=args.tail)
-    code = 1
+    code, process, pending = 1, None, b""
     try:
-        env = {**os.environ, **SLACK.tracking_env(SLACK.load_keys())}  # runs log to this project's W&B workspace
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, env=env)
-        for line in process.stdout:
-            sys.stdout.write(line)
-            tail.append(line.rstrip()[:200])
+        # unbuffered child + raw chunk passthrough: progress bars and logs appear live
+        env = {**os.environ, "PYTHONUNBUFFERED": "1", **SLACK.tracking_env(SLACK.load_keys())}
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+        while chunk := process.stdout.read1(65536):
+            sys.stdout.buffer.write(chunk)
+            sys.stdout.buffer.flush()
+            pending += chunk
+            *lines, pending = pending.replace(b"\r", b"\n").split(b"\n")
+            tail.extend(l.decode(errors="replace").rstrip()[:200] for l in lines if l.strip())
         code = process.wait()
     except KeyboardInterrupt:
-        process.terminate()
+        if process:
+            process.terminate()
         code = 130
+    except OSError as error:  # command not found / not executable
+        tail.append(f"could not start: {error}")
+        code = 127
     finally:
-        title, text = message(args.name, shlex.join(command), code, time.time() - started, list(tail),
-                              new_report(args.report_glob, started))
+        if pending.strip():
+            tail.append(pending.decode(errors="replace").rstrip()[:200])
         report = new_report(args.report_glob, started)
+        title, text = message(args.name, shlex.join(command), code, time.time() - started, list(tail), report)
         result = SLACK.notify(title, text)
         if report and result["status"] == "sent":
             SLACK.mark_sent(report)

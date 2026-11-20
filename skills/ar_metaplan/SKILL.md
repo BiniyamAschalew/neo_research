@@ -7,20 +7,13 @@ description: Refine a research idea into an evidence-backed prompt for ar_plan. 
 
 Turn an idea into a scientifically defensible input to `$ar_plan`. The deliverable is a research-design brief with a self-contained, copyable planning prompt. Preserve the user's underlying question while challenging the proposed mechanism and experiment. A useful outcome may be reuse of existing evidence, a narrower question, a feasibility study, or a recommendation not to run.
 
-Invocation: `$ar_metaplan <idea, question, or existing draft path>`.
+Invocation: `ar_metaplan <idea, question, or existing draft path>` (`/ar_metaplan` in Claude, `$ar_metaplan` in Codex).
 
-## Shared Installation and Project Context
-
-Use the active project as the working root, even when this skill resolves through a link into another repository. Read its applicable AGENTS.md or Claude instructions, status and relevant artifact policy. Project instructions, explicit user amendments and established experiment contracts take precedence over the defaults below. Never move generated research state into the shared skill repository merely because the skill is installed there.
-
-Codex invokes `$ar_plan`/`$ar_dev`/`$ar_metaplan`; Claude uses `/ar_plan`/`/ar_dev`/`/ar_metaplan`. Record the actual assistant as author. Resolve this skill's supporting references and scripts relative to its installation, following links; resolve research/code/config paths against the active project.
-
-Use targeted reads of the affected source and board references. Inspect actual implementations rather than relying on the code map. Preserve historical reports and frozen acquisition protocols; apply new execution conventions to new work or explicitly requested migrations.
+Work in the active project (or idea worktree); read [board conventions](../references/board.md), `__board__/PROJECT.md`, and the main checkout's `TRACKER.md`, `ideas/*.md` and `branches/*.md`. Project instructions override the defaults here. Record the actual agent as author. Read only what the idea touches; inspect actual implementations rather than relying on `structure.md` alone.
 
 ## Scope and project context
 
 - Use the current directory as the project root unless the user specifies another. Read applicable project instructions and `__board__/STATUS.md` if present.
-- Read the project's `.agents/skills/ar_plan/SKILL.md` to understand its handoff contract, including the project's entrypoint, report-layout and code-map conventions. If unavailable, report that limitation and still produce a portable planning prompt.
 - Inspect relevant plans, reports, notes, references, source, configurations, and tests. Follow links to actual result artifacts when needed to substantiate a finding. Keep searches targeted to the idea and its synonymous mechanisms. Always read the closed-idea summaries `__board__/ideas/*.md` in the main checkout (written by `ar_tree`); a summary marked failed is prior evidence, and its "Don't retry unless" condition must hold before recommending the same approach.
 - This skill designs research. Do not implement code, launch experiments, or invoke `ar_plan` automatically. If the user also requests downstream planning or execution, complete this deliverable and then continue under the appropriate skill.
 - Save generated research state under `__board__/`. Skill definitions belong in `.agents/skills/`; metaplans do not.

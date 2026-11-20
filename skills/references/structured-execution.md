@@ -2,11 +2,7 @@
 
 Read this when planning or developing executable research code. Apply the conventions to the maintained codebase; preserve historical reports and unrelated legacy workflows.
 
-## Organization and reuse
-
-Inspect existing modules before adding files. Keep domain algorithms in semantic packages (data, models, selection, analysis, experiments); put genuinely shared infrastructure under a utilities package with semantic subdivisions such as I/O and reproducibility. Keep related functions together. Avoid one file per helper, generic utility dumping grounds, duplicate implementations and runtime imports from archived report code.
-
-Review organization during planning and before expensive acquisition. Duplication, mixed responsibilities, circular dependencies or difficult navigation justify a scoped restructure. Add hierarchy when it expresses a distinct responsibility; directory width, file length and depth are signals, not automatic quotas. A small behavior-preserving refactor may be part of development; plan broader migrations separately. Preserve public imports with compatibility exports when appropriate. Do not reorganize frozen scientific acquisition code mid-run without retaining the original sources and documenting the change and parity checks.
+Code organization, configs and the run entrypoint follow [code style](code-style.md); this file covers profiles, fixtures, devices and acceptance evidence.
 
 ## Two execution profiles, one pipeline
 
