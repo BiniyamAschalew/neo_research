@@ -6,7 +6,8 @@
     prefix       how skills are invoked in a prompt: /ar_plan (Claude) or $ar_plan (Codex)
     rules        extra arguments that make a file part of the session's standing instructions,
                  so they survive long sessions (used by the ar_mate launcher)
-    guard        extra arguments that stop the mate from editing files outside __board__/ (Claude hook)
+    guard        extra arguments that stop the mate from editing files outside __board__/:
+                 Claude: a PreToolUse hook; Codex: read-only sandbox + a mate-specific review policy
     mate         default permission flags for the mate session (ar_mate --ask drops them):
                  Claude auto mode (a classifier approves safe actions, asks for risky ones);
                  Codex "Approve for me" (workspace-write sandbox, approvals sent to automatic review)
@@ -35,8 +36,9 @@ AGENTS = {
         "review": ["codex", "exec", "-s", "read-only"],
         "prefix": "$",
         "rules": lambda path: ["-c", "developer_instructions=" + json.dumps(Path(path).read_text())],
-        "mate": ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"',
-                 "-c", 'sandbox_mode="workspace-write"'],
+        "mate": ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"'],
+        "guard": lambda policy: ["-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="on-request"',
+                                 "-c", "auto_review.policy=" + json.dumps(Path(policy).read_text())],
     },
 }
 DEFAULT = os.environ.get("AR_AGENT", "claude")

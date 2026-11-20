@@ -9,6 +9,8 @@ with the ar_mate rules in its standing instructions, so it stays the mate throug
 
 Claude gets the rules via --append-system-prompt-file, Codex via developer_instructions.
 Approvals: Claude starts in auto mode, Codex in "Approve for me"; --ask keeps normal prompts.
+The mate cannot write code: Claude via a PreToolUse hook, Codex via a read-only sandbox whose
+escalations go to a reviewer with the mate policy (skills/ar_mate/mate_review_policy.md).
 Other installed agent CLIs start with the rules in their first prompt only.
 """
 
@@ -23,7 +25,7 @@ import sys
 NEO = Path(__file__).resolve().parent
 SKILL = NEO / "skills/ar_mate/SKILL.md"
 WATCH = NEO / "skills/ar_mate/scripts/mate_watch.py"
-GUARD = NEO / "skills/ar_mate/scripts/mate_guard.py"
+GUARD = {"claude": NEO / "skills/ar_mate/scripts/mate_guard.py", "codex": NEO / "skills/ar_mate/mate_review_policy.md"}
 _notify = importlib.util.spec_from_file_location("slack_notify", NEO / "skills/ar_notify/scripts/slack_notify.py")
 PROJECT_ENV = importlib.util.module_from_spec(_notify)
 _notify.loader.exec_module(PROJECT_ENV)
@@ -67,8 +69,8 @@ def main():
         subprocess.run([sys.executable, str(WATCH), "--ensure"], cwd=root)
     first = f"{AGENTS.skill('ar_mate', args.agent)} status"
     permissions = [] if args.ask else agent["mate"]
-    if agent.get("guard"):  # hard stop on code edits by the mate (Claude); Codex relies on the rules
-        permissions = [*permissions, *agent["guard"](GUARD)]
+    if agent.get("guard"):  # hard stop on code edits by the mate: Claude hook / Codex read-only sandbox + review policy
+        permissions = [*permissions, *agent["guard"](GUARD[args.agent])]
     if agent["rules"]:
         command = [*agent["interactive"], *permissions, *agent["rules"](SKILL), *extra, first]
     else:

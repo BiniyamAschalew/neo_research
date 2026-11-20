@@ -41,7 +41,7 @@ class AgentTests(unittest.TestCase):
                 (fake / name).chmod(0o755)
             env = {**os.environ, "PATH": f"{fake}:{os.environ['PATH']}"}
             for agent, permission, first in (("claude", ["--permission-mode", "auto", "--settings"], "/ar_mate status"),
-                                             ("codex", ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"'],
+                                             ("codex", ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"', "-c", 'sandbox_mode="read-only"'],
                                               "$ar_mate status")):
                 out = subprocess.run([str(NEO / "ar_mate"), agent, "--no-watch", "--", "--model", "x"], cwd=project,
                                      env=env, text=True, capture_output=True, check=True).stdout
@@ -50,7 +50,9 @@ class AgentTests(unittest.TestCase):
                 self.assertEqual(argv[-3:], ["--model", "x", first])
                 asked = subprocess.run([str(NEO / "ar_mate"), agent, "--no-watch", "--ask"], cwd=project,
                                        env=env, text=True, capture_output=True, check=True).stdout
-                self.assertNotIn(permission[1], json.loads(asked.strip().splitlines()[-1]))
+                asked_argv = json.loads(asked.strip().splitlines()[-1])
+                self.assertNotIn("auto", asked_argv if agent == "claude" else [])          # no auto mode
+                self.assertNotIn('approvals_reviewer="auto_review"', asked_argv)            # --ask: you review
 
     def test_install_links_commands(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -101,6 +103,9 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(decide("mnist_mlp.py"), "deny")
         self.assertEqual(decide("/p/models/x.py"), "deny")
         self.assertEqual(decide("__board__/ideas/x.md"), "allow")
+        codex = AGENTS.AGENTS["codex"]["guard"](NEO / "skills/ar_mate/mate_review_policy.md")
+        self.assertIn('sandbox_mode="read-only"', codex)
+        self.assertIn("Deny", json.loads(codex[-1].split("=", 1)[1]))
         settings = json.loads(AGENTS.AGENTS["claude"]["guard"](guard)[1])
         self.assertEqual(settings["hooks"]["PreToolUse"][0]["matcher"], "Edit|Write|NotebookEdit|MultiEdit")
 

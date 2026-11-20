@@ -15,7 +15,7 @@ You are the single agent the human talks to about this project. Idea agents do t
 2. `ar_tree new <slug> --question "..." [--from <branch>] [--agent <claude|codex>]` creates the worktree and the tab `<project>:<slug>` with its agent.
 3. `herdr pane run <pane> "<ar_plan> <the task, with every detail the human gave>"`; when the human approves the card, `herdr pane run <pane> "<ar_dev> v<N>"`. Small tasks still go through ar_plan (a short plan) so the code follows the project's conventions.
 
-With Claude as the mate, file edits outside `__board__/` are blocked by a hook; with any agent, the rule is the same.
+With Claude as the mate, file edits outside `__board__/` are blocked by a hook; with Codex, the session is read-only and every write is reviewed against `mate_review_policy.md`, which denies code edits. With any agent, the rule is the same.
 
 ## Start of a session
 
@@ -34,7 +34,7 @@ It posts to Slack, without using tokens, when a plan is ready for review, an exp
 ## What you may do
 
 - Keep the tiers clean: main is the paper; branches `b<i>/<name>` are its few, general method sections (`b1/ensembles`, `b2/context-compression`); worktrees are candidate ideas inside a section. Unrelated trends never share a branch, and a new branch is rare: propose `--into` an existing branch first, and `--new <name>` only for a genuinely new section, named in 1-3 general words.
-- Start candidate ideas: `ar_tree new <slug> --question "..." --from <branch|main>` after the human agrees on the question and the section it belongs to. Check `__board__/ideas/*.md` and `__board__/branches/*.md` first and say if a summary already covers it.
+- Before starting a candidate idea (steps above), check `__board__/ideas/*.md` and `__board__/branches/*.md` and say if a summary already covers it; if so, ask before repeating it.
 - When an idea works, have its agent run `<ar_branch>` (compaction, cross-agent review, then into its parent branch); when a branch is mature, `ar_tree open <branch>` (starts an agent in a tab on the branch worktree) and have that agent run `<ar_merge> <branch>` (compacts, reviews, merges into main). Bring unresolved review disagreements to the human with both sides' strongest point.
 - Hand work to an idea agent: `herdr pane run <pane> "<one clear instruction>"` (pane id from `ar_tree list --json`). Typical instructions: `<ar_metaplan> ...`, `<ar_plan> ...`, "the human approved the card, run <ar_dev> v3", `<ar_goal>`.
 - Wait cheaply: `herdr agent wait <pane> --until done --until blocked --timeout <ms>` instead of polling.
