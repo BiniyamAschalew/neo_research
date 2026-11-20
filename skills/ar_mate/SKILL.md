@@ -12,9 +12,8 @@ You are the single agent the human talks to about this project. Idea agents do t
 **You never write or edit code or project files yourself**, not even a one-file script, a quick fix or a config tweak, and never in the main checkout. You may discuss, answer questions and do high-level planning in this tab. Anything that needs a detailed plan or code goes to a new agent in its own tab, immediately and without asking for confirmation:
 
 1. Choose a short slug, a one-line question and where it starts (`--from <branch>` when it belongs to an existing branch, otherwise main), and tell the human in one line.
-2. `ar_tree new <slug> --question "..." [--from <branch>] [--agent <claude|codex>]` creates the worktree and the tab `<project>:<slug>` with its agent.
-3. Hand off once: `herdr pane run <pane> "<ar_plan> <the complete task: every detail the human gave, data, metric, budget, what to report>"`. The agent takes it from there. Small tasks still go through ar_plan (a short plan) so the code follows the project's conventions.
-4. Tell the human in one line what was handed off and to which tab, then stop. The watcher reports the plan when it is ready; when the human approves it, send one more `herdr pane run <pane> "<ar_dev> v<N>"`.
+2. Hand off in one call: `ar_tree new <slug> --question "..." --task "<the complete task: every detail the human gave, data, metric, budget, what to report>" [--quick] [--from <branch>] [--agent <claude|codex>]`. It creates the worktree under `.trees/<slug>` and the tab `<project>:<slug>`, whose agent runs the whole task on its own: ar_metaplan, then ar_plan, then ar_dev (`--quick` skips the metaplan for small, fully specified tasks). It sends one Slack message when done: the final report.
+3. Tell the human in one line what was handed off and to which tab, then stop. If the human wants to approve the plan first, leave out `--task` and send `<ar_plan> ...` with `herdr pane run` instead; then `<ar_dev> v<N>` after approval.
 
 Before handing off, ask the human for anything the task cannot run without (dataset, metric, GPU budget, baseline) in one short question. Missing details are cheaper to settle here than in a half-built plan.
 
@@ -26,7 +25,7 @@ Read `__board__/TRACKER.md`: every branch (method section) and the worktrees (ca
 
 Make sure the Slack watcher runs (one per project, already done when you were started by the `ar_mate` launcher):
 `python .agents/skills/ar_mate/scripts/mate_watch.py --ensure` (starts it in the background unless it is running).
-It posts to Slack and appends to your inbox, without using tokens, when a plan is ready for review, an experiment report lands, an `ar_goal` loop ends, or an idea agent is blocked. Runs launched through `notify_run.py` also post when they end.
+Without using tokens it appends to your inbox when a plan is ready, a report lands, an `ar_goal` loop ends, or an idea agent is blocked or finishes its turn; it posts to Slack only for a blocked agent. Each task posts its own single Slack message (the final report) and each `ar_goal` loop its summary.
 
 ## Each turn
 
@@ -47,7 +46,7 @@ Never poll or babysit: no `herdr agent wait`, no repeated `herdr pane read`, no 
 
 ## What needs the human
 
-- Approving an experiment card before `<ar_dev>` runs a full config.
+- Approving an experiment card, only when the human asked to see plans first (otherwise `--task` runs end to end).
 - Any `ar_tree close|branch|merge|drop|bury ... --yes`, which branch an idea joins or whether a new branch opens, what survives a compaction, tag or branch pushes, `git push`.
 - Starting an overnight `ar_goal` loop or changing its goal, budget or allowed files.
 - Changing a question, metric, split or baseline mid-idea.
@@ -56,5 +55,5 @@ Never poll or babysit: no `herdr agent wait`, no repeated `herdr pane read`, no 
 
 - Never edit code inside idea worktrees; that is the idea agent's job.
 - Report results with numbers and paths, not adjectives. Separate tiny/debug runs from scientific results.
-- Completion must reach Slack: idea agents launch runs through `notify_run.py`, and `mate_watch.py` posts every new report. If either is missing for a run, send `<ar_notify> --report <report>` yourself when it ends.
+- One Slack message per task. If an idea agent finished its turn (inbox) with a new report but did not post it, send `<ar_notify> --report <report>` once yourself.
 - Keep your own state on disk (`__board__/ideas.md`, `TRACKER.md`, worktree boards); a restarted mate rebuilds its picture from them and `mate_status.py`.

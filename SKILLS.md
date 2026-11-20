@@ -8,7 +8,7 @@ Claude `/ar_<name>`, Codex `$ar_<name>`; scripts run from the project root (`.ag
 ar_mate [codex]                                    tab 0, main checkout: the first mate
   ar_tree new <slug> --from b1|main                candidate idea: worktree + tab + agent
   ar_metaplan -> ar_plan                           you edit the Experiment Card
-  ar_dev                                           runs via notify_run.py -> Slack on completion
+  ar_dev                                           runs via notify_run.py; one Slack message: the final report
   ar_goal                                          optional overnight tuning
   ar_tree close <slug> dead|parked                 failed: summary only reaches main
   ar_branch <slug>                                 works: compact + review + into its branch
@@ -26,7 +26,7 @@ python $T merge b2 [--keep] [--yes]                          # step 5 of ar_merg
 python $T drop b2 [--yes]
 python $T tracker | list [--json] | bury <slug> --question "..." --paths <old paths> [--yes]
 ```
-- Worktrees `../<project>.ideas/<slug>` on branch `idea/<slug>`; branches `b<i>/<name>`, numbers never reused, ≤4 active (`AR_MAX_BRANCHES`), names 1-3 general words.
+- Worktrees `<project>/.trees/<slug>` (git-ignored, inside the project) on branch `idea/<slug>`; branches `b<i>/<name>`, numbers never reused, ≤4 active (`AR_MAX_BRANCHES`), names 1-3 general words.
 - Every exit needs a filled summary in main (`__board__/ideas/<slug>.md` or `__board__/branches/b<i>-<name>.md`); code stays in tag `archive/<slug>` / `archive/b<i>-<name>`; raw results go to `~/ar_archive/` (or into main on merge). `--yes` acts; without it, a dry run.
 - `__board__/TRACKER.md` on main is regenerated on every change.
 
@@ -53,10 +53,10 @@ Inside an idea worktree: each iteration a fresh agent (`agent: claude|codex`) ma
 
 ## `ar_notify`
 ```bash
-python .agents/skills/ar_notify/scripts/notify_run.py --name "v3 full" -- python run.py
+python .agents/skills/ar_notify/scripts/notify_run.py --notify --name "v3 full" -- python run.py
 python .agents/skills/ar_notify/scripts/slack_notify.py --report __board__/reports/v3/v3.md
 ```
-`notify_run.py` streams output live, passes the project's W&B entity/project, and posts status, duration and the new report card (or output tail) when the run ends, keeping the run's exit code. Messages are text with text tables and end with the `WANDB_URL` link; no webhook means `skipped`.
+`notify_run.py` streams output live, passes the project's W&B entity/project and keeps the run's exit code. It is quiet by default (a task's one Slack message is its final report); with `--notify` it posts status, duration and the new report card (or output tail) when the run ends. Messages are text with text tables and end with the `WANDB_URL` link; no webhook means `skipped`.
 
 ## Planning, running, notes
 | Skill | Run | Notes |

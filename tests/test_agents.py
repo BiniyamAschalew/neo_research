@@ -77,7 +77,7 @@ class AgentTests(unittest.TestCase):
             run(sys.executable, str(NEO / "skills/ar_tree/scripts/ar_tree.py"), "new", "x", "--question", "q",
                 "--no-herdr", "--agent", "claude", env={**env, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
                                                          "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
-            work = Path(temp) / "proj.ideas/x"
+            work = Path(temp) / "proj/.trees/x"
             out = run(sys.executable, str(NEO / "skills/references/review.py"), "branch", cwd=work, env=env).stdout
             self.assertIn("REVISE", out)
             review = (work / "__board__/REVIEW.md").read_text()

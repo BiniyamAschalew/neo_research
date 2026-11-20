@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Run an experiment command and send a Slack text summary when it ends (success, failure or Ctrl+C).
+"""Run an experiment command with the project's W&B settings; with --notify, post a Slack summary when it ends.
 
-    python .agents/skills/ar_notify/scripts/notify_run.py -- python run.py
-    python .agents/skills/ar_notify/scripts/notify_run.py --name "v3 full" -- python persist_notify.py run -- python run.py
+    python .agents/skills/ar_notify/scripts/notify_run.py -- python run.py                 # quiet: part of a task
+    python .agents/skills/ar_notify/scripts/notify_run.py --notify --name "v3 full" -- python persist_notify.py run -- python run.py
+
+Inside an ar_plan/ar_dev task the runs stay quiet: the task sends one Slack message, its final report.
+Use --notify only for a run that outlives the task (launched in the background and left running).
 
 Output streams to the terminal as usual; the wrapper exits with the command's exit code.
 If a report under __board__/reports/ was written during the run, its card is included;
@@ -61,6 +64,7 @@ def message(name, command, code, seconds, tail, report):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--name", help="Short run label for the Slack title")
+    parser.add_argument("--notify", action="store_true", help="Post to Slack when the run ends (success, failure or Ctrl+C)")
     parser.add_argument("--report-glob", default="__board__/reports/*/*.md")
     parser.add_argument("--tail", type=int, default=15)
     parser.add_argument("command", nargs=argparse.REMAINDER, help="-- <command ...>")
@@ -92,12 +96,13 @@ def main():
     finally:
         if pending.strip():
             tail.append(pending.decode(errors="replace").rstrip()[:200])
-        report = new_report(args.report_glob, started)
-        title, text = message(args.name, shlex.join(command), code, time.time() - started, list(tail), report)
-        result = SLACK.notify(title, text)
-        if report and result["status"] == "sent":
-            SLACK.mark_sent(report)
-        print(f"[ar_notify] {json.dumps(result)}", file=sys.stderr)
+        if args.notify:
+            report = new_report(args.report_glob, started)
+            title, text = message(args.name, shlex.join(command), code, time.time() - started, list(tail), report)
+            result = SLACK.notify(title, text)
+            if report and result["status"] == "sent":
+                SLACK.mark_sent(report)
+            print(f"[ar_notify] {json.dumps(result)}", file=sys.stderr)
     return code
 
 

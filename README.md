@@ -35,11 +35,11 @@ main                          the paper: best compacted code + summaries + __boa
 
 ```text
 Herdr tab 0:  cd my-project && ar_mate          # or: ar_mate codex   (first mate + Slack watcher)
-You -> mate:  "new idea in b1: does bagging help? plan it"
-Mate:         ar_tree new bagging --from b1 -> worktree + tab with its own agent, which runs ar_plan
-Slack:        "plan ready for review" + Experiment Card    -> you edit the card, tell the mate "approved"
-Idea agent:   ar_dev, runs through notify_run.py (logs to the project's W&B)
-Slack:        "run finished" (+ duration), then "experiment done" + Planned vs Actual card
+You -> mate:  "new idea in b1: does bagging help?"
+Mate:         ar_tree new bagging --from b1 --task "..."  -> .trees/bagging + tab whose agent runs
+              ar_metaplan -> ar_plan -> ar_dev on its own (runs log to the project's W&B)
+Slack:        one message when the task is done: the report's Planned vs Actual card
+              (plus "agent needs you" only if it gets blocked)
 You -> mate:  failed  -> "close it": only the summary reaches main
               works   -> "branch it": ar_branch = compact + cross-agent review + merge into b1
               mature  -> "merge b1":  ar_merge  = compact + review + one squash commit into main
@@ -62,7 +62,7 @@ Claude `/ar_<name>`, Codex `$ar_<name>`. Commands and flags: **[SKILLS.md](SKILL
 | `ar_merge` | branch → main: compact, cross-agent review, one squash commit into main |
 | `ar_mate` | first mate: hands each task off once to an idea tab, then reports only watcher events (plans, results, blocked agents); never polls agents |
 | `ar_goal` | overnight one-change-at-a-time tuning loop with a sealed test |
-| `ar_notify` | Slack text message when a run ends |
+| `ar_notify` | Slack text message: a task's final report, or a run left running (`notify_run.py --notify`) |
 
 Conventions every skill follows: [code style](skills/references/code-style.md) (reuse first; `models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries; data and checkpoints soft-linked from the asset store; hierarchical YAML configs; one `run.py` without argparse; `structure.md` of all signatures; no per-version copies), [W&B tracking](skills/references/tracking.md) (named runs, curves only on real axes, tables for results), [compaction](skills/references/compaction.md) and [review](skills/references/review.md).
 

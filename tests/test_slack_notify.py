@@ -61,8 +61,11 @@ class SlackNotifyTests(unittest.TestCase):
     def test_run_wrapper_notifies_and_keeps_exit_code(self):
         with tempfile.TemporaryDirectory() as temp:
             env = {**os.environ, "AR_SLACK_ENV": str(Path(temp) / "none.env")}
+            quiet = subprocess.run([sys.executable, str(SCRIPTS / "notify_run.py"), "--", sys.executable, "-c", "print(1)"],
+                                   cwd=temp, env=env, text=True, capture_output=True)
+            self.assertNotIn("[ar_notify]", quiet.stderr)                       # part of a task: no Slack
             for code in (0, 3):
-                result = subprocess.run([sys.executable, str(SCRIPTS / "notify_run.py"), "--name", "smoke", "--",
+                result = subprocess.run([sys.executable, str(SCRIPTS / "notify_run.py"), "--notify", "--name", "smoke", "--",
                                          sys.executable, "-c", f"print('epoch 1 loss 0.5'); raise SystemExit({code})"],
                                         cwd=temp, env=env, text=True, capture_output=True)
                 self.assertEqual(result.returncode, code)

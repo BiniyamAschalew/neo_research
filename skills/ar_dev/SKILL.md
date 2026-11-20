@@ -26,8 +26,8 @@ Read [code style](../references/code-style.md) and, for executable work, [struct
 ## 3. Run
 
 - Tiny first: `python run.py` with `PROFILE = "tiny"` on the tracked real-data fixture, actual model forward passes and (for trainable methods) a couple of optimizer updates, outputs isolated from results. Report the device actually used; never claim untested backends.
-- Every run, tiny or full, goes through the completion notifier so its end always reaches Slack:
-  `python .agents/skills/ar_notify/scripts/notify_run.py --name "<plan> <profile>" -- python run.py` (put the GPU claim helper from `~/.config/ar/host.md` inside it when required). It also passes the project's W&B entity/project to the run.
+- Every run, tiny or full, goes through the run wrapper, which passes the project's W&B entity/project to it:
+  `python .agents/skills/ar_notify/scripts/notify_run.py --name "<plan> <profile>" -- python run.py` (put the GPU claim helper from `~/.config/ar/host.md` inside it when required). Runs stay quiet; the task's one Slack message is the final report below. Add `--notify` only for a run you leave running after the task ends.
 - Full profile only for scientific acquisition the plan authorizes. Long runs: start in a Herdr tab or `nohup`, never block the session on them.
 - Tests: run those the plan lists or the human requests; otherwise write `Verification: not required by plan or request`. No broad extra suites, no test-only installs.
 - W&B: follow [tracking](../references/tracking.md) (descriptive names and groups, curves only on a real x-axis, one-off results in `run.summary` or tables, debug runs separate).

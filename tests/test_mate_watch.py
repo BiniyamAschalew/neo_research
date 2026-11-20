@@ -33,7 +33,7 @@ class MateWatchTests(unittest.TestCase):
             sh("git", "commit", "-q", "-m", "i", cwd=repo)
             env = {**os.environ, "PATH": "/usr/bin:/bin"}
             subprocess.run([sys.executable, str(TREE), "new", "idea1", "--question", "q", "--no-herdr"], cwd=repo, env=env, check=True, capture_output=True)
-            work = Path(temp) / "proj.ideas/idea1"
+            work = Path(temp) / "proj/.trees/idea1"
             old = work / "__board__/plans/v0.old.md"
             old.parent.mkdir(parents=True)
             old.write_text("# Plan v0\n")
@@ -41,23 +41,18 @@ class MateWatchTests(unittest.TestCase):
             self.assertEqual(watch.check(repo, state, send=False), [])          # existing files are baseline
             plan = work / "__board__/plans/v1.x.md"
             plan.write_text("# Plan v1: x\n\n## Experiment Card\n\n| | |\n|---|---|\n| **Question** | q |\n\n======\n")
-            out = watch.check(repo, state, send=False)
-            self.assertEqual(len(out), 1)
-            self.assertIn("plan ready for review", out[0][1])
-            self.assertIn("Question", out[0][2])
+            self.assertEqual(watch.check(repo, state, send=False), [])          # plan: inbox only, no Slack
             plan.write_text(plan.read_text() + "edit\n")
             os.utime(plan, ns=(plan.stat().st_atime_ns, plan.stat().st_mtime_ns + 2_000_000_000))
-            self.assertEqual(watch.check(repo, state, send=False), [])          # edits don't re-notify
+            self.assertEqual(watch.check(repo, state, send=False), [])
             report = work / "__board__/reports/v1.x/v1.x.md"
             report.parent.mkdir(parents=True)
             report.write_text("# Report: v1\n\n## Experiment Card — Planned vs Actual\n\n**Verdict**: passed\n\n======\n")
-            watch.SLACK.mark_sent(report)                                      # e.g. ar_dev already posted it
-            self.assertEqual(watch.check(repo, state, send=False), [])
-            report.write_text(report.read_text() + "rerun\n")
-            stat = report.stat()
-            os.utime(report, ns=(stat.st_atime_ns, stat.st_mtime_ns + 2_000_000_000))  # coarse-mtime filesystems
-            out = watch.check(repo, state, send=False)
-            self.assertIn("experiment done", out[0][1])
+            self.assertEqual(watch.check(repo, state, send=False), [])          # report: the task posts it itself
+            goal = work / "__board__/goal/summary.md"
+            goal.parent.mkdir(parents=True)
+            goal.write_text("# Goal\n\nbest 0.91\n")
+            self.assertEqual(watch.check(repo, state, send=False), [])          # goal.py posts its own summary
             new = watch.STATUS.unread(repo)                                     # mate reads events, not agents
             self.assertEqual([("plan ready" in l, "experiment done" in l) for l in new][0], (True, False))
             self.assertTrue(any("experiment done" in l and "v1.x.md" in l for l in new))

@@ -5,12 +5,10 @@
     python .agents/skills/ar_mate/scripts/mate_watch.py --once     # one check, then exit
     python .agents/skills/ar_mate/scripts/mate_watch.py --ensure   # start in the background unless already running
 
-Every --interval seconds it checks each open idea worktree and sends one message for:
-  - a new plan                   -> "plan ready for review" with its Experiment Card (once)
-  - a new or updated report      -> "experiment done" with its Planned vs Actual card
-  - a finished ar_goal loop      -> the goal summary
-  - an idea agent turning blocked -> "needs you" (Herdr state, best effort)
-Plans/reports an agent or notify_run already posted are not re-sent to Slack. Costs no tokens.
+Every --interval seconds it checks each open idea worktree. Slack gets only what a task's own final
+report does not cover: an idea agent turning blocked -> "needs you" (Herdr state, best effort).
+A task (ar_metaplan -> ar_plan -> ar_dev) sends exactly one Slack message itself, its final report; an
+ar_goal loop sends its own summary. Costs no tokens.
 Every event (plus an agent finishing its turn) is also appended to an inbox in the git common
 dir (.git/ar_mate_inbox.md), which the mate reads with `mate_status.py --inbox` instead of polling agents.
 """
@@ -86,8 +84,6 @@ def check(root, state, send=True):
                 continue
             title, text = message(root.name, row["slug"], kind, path)
             to_inbox(root, row["slug"], title.split(": ", 1)[-1], path.relative_to(tree))
-            if not SLACK.already_sent(path):
-                out.append((path, title, text))
         agent = STATUS.agent_state(row["pane"])
         previous = state["agents"].get(row["slug"])
         state["agents"][row["slug"]] = agent

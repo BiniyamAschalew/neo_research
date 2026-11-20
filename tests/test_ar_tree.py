@@ -35,7 +35,8 @@ class ArTreeTests(unittest.TestCase):
 
     def start(self, slug):
         self.tree("new", slug, "--question", "Does it help?", "--no-herdr")
-        work = self.repo.parent / "proj.ideas" / slug
+        work = self.repo / ".trees" / slug
+        self.assertNotIn(".trees", sh("git", "status", "--porcelain", cwd=self.repo))  # inside the project, ignored
         (work / "model.py").write_text("x = 2\n")
         (work / "__board__/reports").mkdir(parents=True)
         (work / "__board__/reports/r.md").write_text("big report\n")
@@ -98,7 +99,7 @@ class ArTreeTests(unittest.TestCase):
         self.assertEqual(sh("git", "status", "--porcelain", cwd=self.repo), "")
         # deepen the direction, then graduate it to main
         deeper = self.tree("new", "try-b2", "--question", "more", "--from", "speedups", "--no-herdr")
-        work2 = self.repo.parent / "proj.ideas/try-b2"
+        work2 = self.repo / ".trees/try-b2"
         self.assertEqual((work2 / "model.py").read_text(), "x = 2\n")
         (work2 / "model.py").write_text("x = 3\n")
         sh("git", "commit", "-q", "-am", "deeper", cwd=work2)
@@ -106,7 +107,7 @@ class ArTreeTests(unittest.TestCase):
         self.fill_summary("try-b2")
         self.tree("branch", "try-b2", "--yes")                         # default: its parent branch b1/speedups
         opened = self.tree("open", "speedups", "--no-herdr")
-        dwork = self.repo.parent / "proj.branches/b1-speedups"
+        dwork = self.repo / ".trees/b1-speedups"
         self.assertTrue(dwork.exists())
         gated = self.tree("merge", "speedups", "--yes", check=False)
         self.assertIn("compaction step", gated.stdout)
@@ -191,7 +192,7 @@ class ArTreeTests(unittest.TestCase):
         self.assertEqual([p.wait() for p in procs], [0] * 4)
         registry = (self.repo / "__board__/ideas.md").read_text()
         self.assertEqual(sum(f"| p{i} |" in registry for i in range(4)), 4)
-        work = self.repo.parent / "proj.ideas/p0"
+        work = self.repo / ".trees/p0"
         self.assertTrue((work / ".agents/skills/ar_tree/SKILL.md").exists())
         self.assertEqual(Path(os.readlink(work / ".claude/settings.local.json")),
                          self.repo / "__board__/claude/settings.local.json")
@@ -234,7 +235,7 @@ class ArTreeTests(unittest.TestCase):
         (self.repo / "__board__").mkdir(exist_ok=True)
         (self.repo / "__board__/project.env").write_text(f"ASSETS_ROOT={store}\n")
         self.tree("new", "with-data", "--question", "q", "--no-herdr")
-        work = self.repo.parent / "proj.ideas/with-data"
+        work = self.repo / ".trees/with-data"
         self.assertEqual((work / "data/raw/f.txt").read_text(), "shared")
         self.assertEqual(sh("git", "status", "--porcelain", cwd=work), "")
 
@@ -253,3 +254,16 @@ class AgentCommandTests(unittest.TestCase):
         codex = tree.agent_command("codex")
         self.assertIn('approvals_reviewer="auto_review"', codex)
         self.assertNotIn('sandbox_mode="read-only"', codex)        # idea agents write code; only the mate is read-only
+
+
+class TaskPromptTests(unittest.TestCase):
+    def test_one_handoff_runs_the_whole_chain(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("ar_tree_mod2", SCRIPT)
+        tree = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tree)
+        full = tree.task_prompt("codex", Path("/p"), "train an MLP on MNIST")
+        self.assertTrue(full.startswith("$ar_metaplan train an MLP on MNIST"))
+        self.assertIn("$ar_plan and then $ar_dev", full)
+        self.assertIn("exactly one Slack message", full)
+        self.assertTrue(tree.task_prompt("claude", Path("/p"), "fix x", quick=True).startswith("/ar_plan fix x"))

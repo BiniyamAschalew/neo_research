@@ -56,6 +56,21 @@ AGENTS = importlib.util.module_from_spec(_AGENTS)
 _AGENTS.loader.exec_module(AGENTS)
 
 
+TREES = ".trees"  # every worktree lives inside the project, ignored via .git/info/exclude
+
+
+def trees_dir(root):
+    """<project>/.trees/: idea and branch worktrees, kept inside the main folder and never committed."""
+    common = (root / git("rev-parse", "--git-common-dir", cwd=root)).resolve()
+    exclude = common / "info/exclude"
+    lines = exclude.read_text().splitlines() if exclude.exists() else []
+    if f"/{TREES}/" not in lines:
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        with exclude.open("a") as handle:
+            handle.write(f"\n# ar_tree worktrees\n/{TREES}/\n")
+    return root / TREES
+
+
 def link_shared(tree, root):
     """Give a new worktree the same shared agent links as the main checkout (ar_init).
     Claude's local settings point at the main checkout's board, so approvals are shared per project."""
@@ -211,6 +226,19 @@ def find(rows, slug):
     raise SystemExit(f"No idea '{slug}' in {REGISTRY}")
 
 
+def task_prompt(agent, root, task, quick=False):
+    """The one hand-off message: the idea agent runs the whole task (metaplan -> plan -> dev) on its own."""
+    context = f"Read __board__/IDEA.md and the closed-idea summaries in {root}/__board__/ideas/ first."
+    if not task:
+        return context + " Then wait for instructions."
+    p = AGENTS.spec(agent)["prefix"]
+    first, rest = (f"{p}ar_plan", f"{p}ar_dev") if quick else (f"{p}ar_metaplan", f"{p}ar_plan and then {p}ar_dev")
+    return (f"{first} {task}\n\n{context} When it is done, continue with {rest} yourself, without waiting for "
+            f"approval: you are authorized to run the whole task end to end. Ask only if something blocks the work. "
+            f"Keep runs quiet (notify_run.py without --notify); the task sends exactly one Slack message, "
+            f"ar_dev's final report.")
+
+
 def agent_command(name):
     """Interactive agent for an idea/branch tab, with the same "approve for me" permissions as the mate."""
     agent = AGENTS.spec(name)
@@ -238,7 +266,7 @@ def cmd_new(args):
     rows = read_rows(root)
     if any(r["slug"] == args.slug for r in rows):
         raise SystemExit(f"Idea '{args.slug}' already exists.")
-    tree = root.parent / f"{root.name}.ideas" / args.slug
+    tree = trees_dir(root) / args.slug
     branch = f"idea/{args.slug}"
     args.base = args.base or git("symbolic-ref", "--short", "HEAD", cwd=root)  # the main checkout's branch
     if not branch_exists(root, args.base) and (found := find_branch(rows, args.base)):
@@ -263,7 +291,7 @@ def cmd_new(args):
         if created:
             row["tab"] = created.get("result", {}).get("tab", {}).get("tab_id", "")
             row["pane"] = created.get("result", {}).get("root_pane", {}).get("pane_id", "")
-            prompt = f"Read __board__/IDEA.md and __board__/ideas/ in the main checkout ({root}) before planning."
+            prompt = task_prompt(args.agent, root, args.task, args.quick)
             launch = shlex.join([*agent_command(args.agent), prompt])
             activate = f"conda activate {shlex.quote(args.env)}" if args.env else SLACK.activation(SLACK.load_keys(SLACK.env_file(root)), interactive=True)
             if activate:
@@ -548,7 +576,7 @@ def merge_into_branch(root, target, source, message):
     """Squash-merge source into branch target through a temporary worktree (or target's open worktree)."""
     rows = read_rows(root)
     opened = next((Path(r["worktree"]) for r in rows if r["branch"] == target and r["worktree"]), None)
-    checkout = opened if opened and opened.exists() else root.parent / f"{root.name}.ideas" / f".merge-{target.replace('/', '-')}"
+    checkout = opened if opened and opened.exists() else trees_dir(root) / f".merge-{target.replace('/', '-')}"
     temporary = checkout != opened
     if temporary:
         git("worktree", "add", "-q", str(checkout), target, cwd=root)
@@ -636,7 +664,7 @@ def cmd_open(args):
     if row is None or not branch_exists(root, row["branch"]):
         raise SystemExit(f"No active branch '{args.branch}'.")
     target = row["branch"]
-    tree = root.parent / f"{root.name}.branches" / row["slug"]
+    tree = trees_dir(root) / row["slug"]
     if not tree.exists():
         git("worktree", "add", "-q", str(tree), target, cwd=root)
         link_shared(tree, root)
@@ -773,6 +801,8 @@ def parser():
     new.add_argument("--from", "--base", dest="base", help="main (default: the main checkout's branch) or a branch: b2, b2/<name> or <name>")
     new.add_argument("--agent", default=AGENTS.DEFAULT, help="Agent started in the idea's Herdr tab: claude, codex, ... (default $AR_AGENT or claude)")
     new.add_argument("--env", help="Conda env for the tab (default: CONDA_ENV / ENV_ACTIVATE in __board__/project.env)")
+    new.add_argument("--task", help="Hand the whole task to the tab's agent: it runs ar_metaplan -> ar_plan -> ar_dev on its own")
+    new.add_argument("--quick", action="store_true", help="With --task: skip ar_metaplan (small, well-specified tasks)")
     new.add_argument("--no-herdr", action="store_true")
     lst = sub.add_parser("list")
     lst.add_argument("--json", action="store_true")
