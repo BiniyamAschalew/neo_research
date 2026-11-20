@@ -28,7 +28,7 @@ Slack:         "my-project/cosine-lr: plan ready for review" + Experiment Card
 You:           edit the card if needed, tell the mate "approved"
 Mate:          idea agent runs /ar_dev through notify_run.py (logs to this project's W&B)
 Slack:         run finished + duration, then "experiment done" + Planned vs Actual card + tracking link
-You -> mate:   "close it as dead" -> only the summary returns to main; code archived as a tag
+You -> mate:   "close it as dead" -> only the summary returns to main (or "win" -> code + results merged)
 ```
 
 `ar_mate` puts the mate rules in Claude's system prompt, so it stays the mate through long sessions. It asks before anything irreversible (full runs, closes, merges, pushes) and never edits code itself.
@@ -40,7 +40,7 @@ You -> mate:   "close it as dead" -> only the summary returns to main; code arch
 | `ar_metaplan` | sharpen an idea: prior evidence, theory, decisive design |
 | `ar_plan` | write a plan that opens with an editable 20-line Experiment Card |
 | `ar_dev` | implement and run it; report opens with Planned vs Actual |
-| `ar_tree` | one worktree per idea; closing returns only a summary to main |
+| `ar_tree` | one worktree per idea; a failed idea returns only a summary, a winning one merges code + results |
 | `ar_mate` | first mate coordinating all ideas of a project |
 | `ar_goal` | overnight one-change-at-a-time tuning loop with a sealed test |
 | `ar_notify` | Slack text message when a run ends |

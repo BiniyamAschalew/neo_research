@@ -31,7 +31,7 @@ Read every `__board__/ideas/*.md` in the main checkout. Do not propose an approa
 
 ## Closing
 
-1. Decide the verdict with the human: `dead` (does not work), `parked` (keep branch, drop worktree), `win` (merge).
+1. Decide the verdict with the human: `dead` (does not work), `parked` (keep branch, drop worktree), `win` (merge code and results into main).
 2. Run `close <slug> <verdict>` once to create the summary template and see the plan.
 3. Fill `__board__/ideas/<slug>.md` from the idea's reports: question, approach (2-4 lines), setup, at most 5 main result rows with numbers versus baseline, why it failed (evidence, not guesses), don't retry unless, reusable pieces. Keep it under 40 lines.
 4. Show the human the summary and dry-run plan; run `--yes` only after their approval.

@@ -18,7 +18,7 @@ Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conv
   -> /ar_metaplan -> /ar_plan                     you edit the Experiment Card
   -> /ar_dev                                      runs via notify_run.py -> Slack on completion
   -> /ar_goal (optional, overnight tuning)
-  -> ar_tree close x-idea dead|parked|win         only the summary reaches main
+  -> ar_tree close x-idea dead|parked|win         dead/parked: summary only; win: code + results merged
 ```
 
 ## New skills
@@ -33,7 +33,7 @@ python $T close <slug> dead|parked|win --yes
 python $T bury <slug> --question "..." --paths old_dir/ [--yes]   # clean old experiments off main
 ```
 - Worktree `../<project>.ideas/<slug>`, branch `idea/<slug>`, Herdr tab `<project>:<slug>`.
-- Close needs a filled `__board__/ideas/<slug>.md` (question, approach, main results, why it failed, don't retry unless). Code stays in tag `archive/<slug>`; raw results move to `~/ar_archive/`; `win` merges code only.
+- Close needs a filled `__board__/ideas/<slug>.md` (question, approach, main results, why it failed, don't retry unless). Code stays in tag `archive/<slug>`; raw results move to `~/ar_archive/`; `win` squash-merges the idea's code, configs, plans and reports into main (stops on conflicts, changes nothing).
 
 ### `ar_mate`: first mate across ideas
 ```bash
