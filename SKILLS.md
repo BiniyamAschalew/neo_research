@@ -8,7 +8,7 @@ Claude: `/ar_<name>`. Codex: `$ar_<name>`. Scripts run from the project root; `.
 cd neo_research && ./ar_init ../my-project      # also upgrades an older setup; --dry-run to preview, --untrack for old committed links
 ```
 
-Links the shared agent files, creates `__board__/` and `__board__/PROJECT.md` (fill in env, data, conventions). Optional: paste a Slack Incoming Webhook URL into `neo_research/secrets/slack.env`.
+Links the shared agent files, creates `__board__/` and `__board__/PROJECT.md` (fill in env, data, conventions). Optional: paste a Slack Incoming Webhook URL into `neo_research/secrets/slack.env` (`SLACK_WEBHOOK_URL=...`; see README).
 
 ## Typical flow
 
@@ -40,7 +40,7 @@ python $T bury <slug> --question "..." --paths old_dir/ [--yes]   # clean old ex
 /ar_mate status
 python .agents/skills/ar_mate/scripts/mate_status.py [--json]
 ```
-Run in Herdr tab 0 on the main checkout. Shows every idea's agent state, phase, latest report/goal progress and GPU use; starts ideas, hands instructions to idea tabs (`herdr pane run`), and escalates card approvals, closes, merges and pushes to you. Never edits idea code.
+Run in Herdr tab 0 on the main checkout. It keeps `python .agents/skills/ar_mate/scripts/mate_watch.py` running in a `mate-watch` tab, which posts to Slack (no tokens) when a plan is ready for review, a report lands, a goal loop ends or an idea agent is blocked. Shows every idea's agent state, phase, latest report/goal progress and GPU use; starts ideas, hands instructions to idea tabs (`herdr pane run`), and escalates card approvals, closes, merges and pushes to you. Never edits idea code.
 
 ### `ar_goal`: overnight improvement loop
 ```bash

@@ -7,6 +7,13 @@ description: Act as the project's first mate across several ideas. Run from the 
 
 You are the single agent the human talks to about this project. Idea agents do the work in their own worktrees and Herdr tabs; you coordinate them.
 
+## Start of a session
+
+Make sure the Slack watcher runs (one per project): if `herdr pane list` shows no `mate-watch` tab, start it with
+`herdr tab create --cwd <main checkout> --label mate-watch --no-focus`, then `herdr pane run <pane> "python .agents/skills/ar_mate/scripts/mate_watch.py"`
+(without Herdr: `nohup python .agents/skills/ar_mate/scripts/mate_watch.py > /dev/null 2>&1 &`).
+It posts to Slack, without using tokens, when a plan is ready for review, an experiment report lands, an `ar_goal` loop ends, or an idea agent is blocked. Runs launched through `notify_run.py` also post when they end.
+
 ## Each turn
 
 1. Run `python .agents/skills/ar_mate/scripts/mate_status.py` (add `--json` for detail). It lists open ideas with Herdr agent state (`working`, `blocked`, `done`, `idle`), current phase, latest plan/report/goal progress, uncommitted work and GPU use.
@@ -32,5 +39,5 @@ You are the single agent the human talks to about this project. Idea agents do t
 
 - Never edit code inside idea worktrees; that is the idea agent's job.
 - Report results with numbers and paths, not adjectives. Separate tiny/debug runs from scientific results.
-- Launch runs through `notify_run.py` so completion always reaches Slack; if a run was started without it, send `/ar_notify` yourself when it ends.
+- Completion must reach Slack: idea agents launch runs through `notify_run.py`, and `mate_watch.py` posts every new report. If either is missing for a run, send `/ar_notify --report <report>` yourself when it ends.
 - Keep your own state on disk (`__board__/ideas.md`, worktree boards); a restarted mate rebuilds its picture from `mate_status.py`.

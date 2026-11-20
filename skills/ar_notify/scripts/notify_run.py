@@ -82,7 +82,11 @@ def main():
     finally:
         title, text = message(args.name, shlex.join(command), code, time.time() - started, list(tail),
                               new_report(args.report_glob, started))
-        print(f"[ar_notify] {json.dumps(SLACK.notify(title, text))}", file=sys.stderr)
+        report = new_report(args.report_glob, started)
+        result = SLACK.notify(title, text)
+        if report and result["status"] == "sent":
+            SLACK.mark_sent(report)
+        print(f"[ar_notify] {json.dumps(result)}", file=sys.stderr)
     return code
 
 

@@ -19,6 +19,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[3]
 KEY_FILE = Path(os.environ.get("AR_SLACK_ENV", ROOT / "secrets/slack.env"))
 MAX_TEXT = 3500
+LEDGER = Path(os.environ.get("AR_NOTIFY_LEDGER", Path.home() / ".cache/ar/notified.tsv"))
 IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)\s*")
 
 
@@ -76,6 +77,22 @@ def from_report(report):
     return title, to_slack(section) + f"\n\nReport: `{report}`"
 
 
+def _key(path):
+    path = Path(path).resolve()
+    return f"{path}\t{path.stat().st_mtime_ns}"
+
+
+def already_sent(path):
+    """True if this exact version of a plan/report was already posted (by an agent, notify_run or the mate)."""
+    return LEDGER.exists() and _key(path) in LEDGER.read_text().splitlines()
+
+
+def mark_sent(path):
+    LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    with LEDGER.open("a") as handle:
+        handle.write(_key(path) + "\n")
+
+
 def notify(title, text, keys=None, dry_run=False):
     keys = keys or load_keys()
     message = f"*{title}*\n{text}".strip()
@@ -106,7 +123,10 @@ def main():
         title, card = from_report(args.report)
         title = args.title or title
         text = f"{text}\n{card}".strip()
-    print(json.dumps(notify(title, text, dry_run=args.dry_run)))
+    result = notify(title, text, dry_run=args.dry_run)
+    if args.report and result["status"] == "sent":
+        mark_sent(args.report)
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":

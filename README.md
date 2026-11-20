@@ -16,6 +16,24 @@ Then open `claude` (or `codex`) in `../my-project` and run e.g. `/ar_plan "test 
 
 **Requirements**: git, Python 3.8+, Claude Code and/or Codex CLI. Optional: [Herdr](https://herdr.dev) (one tab per idea), a Slack Incoming Webhook (run notifications), PyYAML (`ar_goal` configs).
 
+## Example: from idea to Slack
+
+```text
+Terminal:      cd neo_research && ./ar_init ../my-project           # once per project (safe to rerun)
+Herdr tab 0:   cd ../my-project && claude
+               /ar_mate start the Slack watcher
+You -> mate:   "new idea: does a cosine schedule beat step decay on val AUC? plan it"
+Mate:          ar_tree new cosine-lr  -> new worktree + Herdr tab with its own agent,
+               tells it to run /ar_plan (or /ar_metaplan first)
+Slack:         "my-project/cosine-lr: plan ready for review" + Experiment Card
+You:           read/edit the card in ../my-project.ideas/cosine-lr/__board__/plans/, then tell the mate "approved"
+Mate:          tells the idea agent to run /ar_dev; the run goes through notify_run.py
+Slack:         run finished/FAILED + duration, then "experiment done" + Planned vs Actual card
+You -> mate:   "close it as dead" (or win/parked) -> summary to main, code archived
+```
+
+You only talk to the mate; it never edits code and asks before anything irreversible (full runs, closes, merges, pushes). Long tuning runs: ask the mate for an `/ar_goal` loop in the idea.
+
 ## Skills
 
 | Skill | Use it to |
@@ -57,7 +75,22 @@ my-project/
 |---|---|---|
 | `my-project/__board__/PROJECT.md` | project | env, data, conventions that override shared defaults |
 | `~/.config/ar/host.md` | machine | e.g. GPU claim rules; `ar_init` installs one from `hosts/` when it recognizes the machine |
-| `neo_research/secrets/slack.env` | machine | `SLACK_WEBHOOK_URL=...` (gitignored; copy `secrets/slack.env.example`) |
+| `neo_research/secrets/slack.env` | machine | Slack webhook (see below) |
+
+## Slack notifications
+
+The webhook lives in **`neo_research/secrets/slack.env`**, one file per machine, gitignored (never committed):
+
+```bash
+cd neo_research
+cp secrets/slack.env.example secrets/slack.env      # if it does not exist yet
+# edit secrets/slack.env:
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+```
+
+Get the URL by creating a Slack app with **Incoming Webhooks** enabled for your channel (https://api.slack.com/messaging/webhooks). Every linked project uses this file; `AR_SLACK_ENV=/other/path` overrides it. Without it, notifications print `skipped` and nothing else changes. Test: `python skills/ar_notify/scripts/slack_notify.py --title test --text hello`.
+
+Messages come from `notify_run.py` (every run's end), `mate_watch.py` (plan ready, experiment report, goal finished, agent blocked) and `ar_goal`; the same report is never posted twice.
 
 ## Repository layout
 
