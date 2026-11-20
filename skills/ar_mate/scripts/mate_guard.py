@@ -9,9 +9,9 @@ import json
 from pathlib import Path
 import sys
 
-REASON = ("You are the first mate: never write or edit code or project files yourself, not even a small script. "
-          "Start the work in its own worktree and Herdr tab: `ar_tree new <slug> --question \"...\" [--from <branch>]`, "
-          "then send the idea agent `ar_plan` (and `ar_dev` once the human approves the card) with `herdr pane run`.")
+REASON = ("You are the first mate: hand file changes to an agent. For routine maintenance, use "
+          "`python .agents/skills/ar_mate/scripts/mate_task.py \"<task>\"`; no research workflow is needed. "
+          "For research ideation or experiments, use `ar_tree new <slug> --question \"...\" --task \"...\"`.")
 
 
 def main():

@@ -1,9 +1,11 @@
 ---
 name: ar_metaplan
-description: Refine a research idea into an evidence-backed prompt for ar_plan. Use when the user wants a plan for a plan, an experiment feasibility or novelty check, theoretical refinement, or a more decisive experiment design before implementation planning. Audit existing experiments, analyze the mathematics, and justify baselines, replication, uncertainty, and decision criteria. Produces a shared-board metaplan, not an execution plan.
+description: Refine a research idea into an evidence-backed prompt for ar_plan. Use when the user wants a plan for a plan, an experiment feasibility or novelty check, theoretical refinement, or a more decisive experiment design before implementation planning. Audit existing experiments, analyze the mathematics, and justify baselines, replication, uncertainty, and decision criteria. Produces a shared-board metaplan, not an execution plan. For research work, not routine downloads or repository housekeeping.
 ---
 
 # AutoResearch Metaplanning
+
+Use this workflow for research ideation or experiments. For routine maintenance such as downloading a specified file or creating `.gitignore`, complete the task with ordinary tools and a short verification; do not create an experiment plan or report.
 
 Turn an idea into a scientifically defensible input to `$ar_plan`. The deliverable is a research-design brief with a self-contained, copyable planning prompt. Preserve the user's underlying question while challenging the proposed mechanism and experiment. A useful outcome may be reuse of existing evidence, a narrower question, a feasibility study, or a recommendation not to run.
 

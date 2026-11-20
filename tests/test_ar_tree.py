@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 from pathlib import Path
 import subprocess
 import sys
@@ -116,6 +117,36 @@ else:
             self.assertEqual(result["created"]["tab"], "w9:t2")
             calls = [json.loads(line) for line in self.herdr_log.read_text().splitlines()]
             self.assertNotIn("--workspace", calls[0])
+
+    def test_maintenance_handoff_uses_existing_checkout_without_research_artifacts(self):
+        script = SCRIPT.parents[2] / "ar_mate/scripts/mate_task.py"
+        task = 'Create .gitignore; preserve literal "quotes" and $(text)'
+        with self.fake_herdr():
+            result = subprocess.run([sys.executable, str(script), task, "--agent", "codex"],
+                                    cwd=self.repo, text=True, capture_output=True, check=True)
+        launched = json.loads(result.stdout)
+        self.assertEqual(launched, {"tab": "w2:t8", "pane": "w2:p28", "agent": "codex", "cwd": str(self.repo)})
+        calls = [json.loads(line) for line in self.herdr_log.read_text().splitlines()]
+        self.assertEqual(calls[0], ["tab", "create", "--workspace", "w2", "--cwd", str(self.repo),
+                                   "--label", "proj:maintenance", "--no-focus"])
+        self.assertEqual(calls[1][:3], ["pane", "run", "w2:p28"])
+        command = shlex.split(calls[1][3])
+        self.assertEqual(command[0], "codex")
+        self.assertTrue(command[-1].startswith(f"Routine maintenance task: {task}\n"))
+        self.assertNotIn("$ar_plan", command[-1])
+        self.assertNotIn("$ar_dev", command[-1])
+        self.assertFalse((self.repo / ".trees").exists())
+        self.assertFalse((self.repo / "__board__").exists())
+        self.assertEqual(sh("git", "status", "--porcelain", cwd=self.repo), "")
+
+    def test_maintenance_without_herdr_does_not_create_research_artifacts(self):
+        script = SCRIPT.parents[2] / "ar_mate/scripts/mate_task.py"
+        result = subprocess.run([sys.executable, str(script), "Create .gitignore"],
+                                cwd=self.repo, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no task was sent", result.stderr)
+        self.assertFalse((self.repo / ".trees").exists())
+        self.assertFalse((self.repo / "__board__").exists())
 
     def test_dead_keeps_only_summary_on_main(self):
         work = self.start("try-a")
@@ -331,4 +362,4 @@ class TaskPromptTests(unittest.TestCase):
         self.assertTrue(full.startswith("$ar_metaplan train an MLP on MNIST"))
         self.assertIn("$ar_plan and then $ar_dev", full)
         self.assertIn("exactly one Slack message", full)
-        self.assertTrue(tree.task_prompt("claude", Path("/p"), "fix x", quick=True).startswith("/ar_plan fix x"))
+        self.assertTrue(tree.task_prompt("claude", Path("/p"), "run the specified baseline", quick=True).startswith("/ar_plan run the specified baseline"))

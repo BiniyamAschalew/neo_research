@@ -39,9 +39,10 @@ python $T tracker | list [--json] | bury <slug> --question "..." --paths <old pa
 ```bash
 ar_mate [claude|codex] [--ask] [--project <path>] [-- <agent flags>]
 python .agents/skills/ar_mate/scripts/mate_status.py [--json]       # ideas, agent states, latest results, GPUs
+python .agents/skills/ar_mate/scripts/mate_task.py "Create .gitignore for Python caches"  # plain maintenance
 python .agents/skills/ar_mate/scripts/mate_watch.py --ensure        # inbox watcher (started by ar_mate)
 ```
-The mate discusses and coordinates only: every coding task, however small, becomes `ar_tree new` + a new tab running `ar_plan`, then `ar_dev` after you approve the card (enforced: Claude by a hook, Codex by a read-only sandbox whose escalations are reviewed against `skills/ar_mate/mate_review_policy.md`). The watcher posts when a plan is ready, a report lands, a goal loop ends or an agent is blocked; it restarts itself after `git pull`.
+The mate discusses and coordinates only: routine maintenance uses `mate_task.py` to hand a plain instruction to an agent in the existing checkout, without plans, research worktrees, reports or research logging. Research ideation and experiments use `ar_tree new` and the research skills (enforced: Claude by a hook, Codex by a read-only sandbox whose escalations are reviewed against `skills/ar_mate/mate_review_policy.md`). The watcher posts when a plan is ready, a report lands, a goal loop ends or an agent is blocked; it restarts itself after `git pull`.
 
 ## `ar_goal`
 ```bash

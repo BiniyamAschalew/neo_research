@@ -1,9 +1,11 @@
 ---
 name: ar_plan
-description: Write an AutoResearch plan under __board__/plans/ that opens with a short, editable Experiment Card (question, change, concrete flow, comparison, runs, metric, decision rule, budget, editable keys) plus at most two synthetic figure previews, followed by an implementation appendix that reuses the entity-organized code base. The human edits the card before ar_dev runs.
+description: Write an AutoResearch plan under __board__/plans/ that opens with a short, editable Experiment Card (question, change, concrete flow, comparison, runs, metric, decision rule, budget, editable keys) plus at most two synthetic figure previews, followed by an implementation appendix that reuses the entity-organized code base. The human edits the card before ar_dev runs. For research work, not routine downloads or repository housekeeping.
 ---
 
 # AR Plan
+
+Use this workflow for research ideation or experiments. For routine maintenance such as downloading a specified file or creating `.gitignore`, complete the task with ordinary tools and a short verification; do not create an experiment plan or report.
 
 Work in the active project (or idea worktree). Read [board conventions](../references/board.md), `__board__/PROJECT.md`, `STATUS.md`, `__board__/IDEA.md` inside an idea worktree, and the main checkout's `TRACKER.md`, `ideas/*.md` and `branches/*.md`: do not re-plan a failed approach unless its "Don't retry unless" condition now holds (say which). Do not write code, except the plan's preview script. Record the actual agent as author.
 

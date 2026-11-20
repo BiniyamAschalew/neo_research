@@ -1,9 +1,11 @@
 ---
 name: ar_dev
-description: Implement and run an AutoResearch plan from __board__/plans/: follow its Experiment Card, reuse and extend the entity-organized code base, run the tiny profile through run.py, launch runs through notify_run.py (Slack on completion), log curated W&B results, refresh structure.md, and write a report that opens with the card as Planned vs Actual.
+description: "Implement and run an AutoResearch plan from __board__/plans/: follow its Experiment Card, reuse and extend the entity-organized code base, run the tiny profile through run.py, launch runs through notify_run.py (Slack on completion), log curated W&B results, refresh structure.md, and write a report that opens with the card as Planned vs Actual. For research work, not routine downloads or repository housekeeping."
 ---
 
 # AR Dev
+
+Use this workflow for research ideation or experiments. For routine maintenance such as downloading a specified file or creating `.gitignore`, complete the task with ordinary tools and a short verification; do not create an experiment plan or report.
 
 Work in the active project (or idea worktree). Read [board conventions](../references/board.md), `__board__/PROJECT.md` and `__board__/STATUS.md`. Project instructions and explicit human amendments override the defaults here. Record the actual agent as author. Do not `git push` without explicit instruction.
 

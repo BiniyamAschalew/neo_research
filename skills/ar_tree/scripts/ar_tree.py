@@ -809,7 +809,7 @@ def parser():
     new.add_argument("--agent", default=AGENTS.DEFAULT, help="Agent started in the idea's Herdr tab: claude, codex, ... (default $AR_AGENT or claude)")
     new.add_argument("--env", help="Conda env for the tab (default: CONDA_ENV / ENV_ACTIVATE in __board__/project.env)")
     new.add_argument("--task", help="Hand the whole task to the tab's agent: it runs ar_metaplan -> ar_plan -> ar_dev on its own")
-    new.add_argument("--quick", action="store_true", help="With --task: skip ar_metaplan (small, well-specified tasks)")
+    new.add_argument("--quick", action="store_true", help="With --task: skip ar_metaplan for an already specified experiment; still runs ar_plan and ar_dev")
     new.add_argument("--no-herdr", action="store_true")
     lst = sub.add_parser("list")
     lst.add_argument("--json", action="store_true")
