@@ -70,7 +70,7 @@ python .agents/skills/ar_notify/scripts/slack_notify.py --report __board__/repor
 
 ## W&B logging
 
-Follow [skills/references/tracking.md](skills/references/tracking.md): run names `<plan>-<idea>-<case>-<profile>-s<seed>`, group = plan, curves only along a real x-axis, final numbers in `run.summary`, condition × dataset × seed results in one `wandb.Table` with a chart, debug runs separate.
+Follow [skills/references/tracking.md](skills/references/tracking.md): run names `<plan>-<idea>-<case>-<profile>-s<seed>`, group = plan, curves only along a real x-axis, final numbers in `run.summary`, condition × dataset × seed results in one `wandb.Table` with a chart, benchmarks as raw / summary (mean ± std over seeds) / leaderboard tables, debug runs separate.
 
 ## Machine rules
 

@@ -30,6 +30,33 @@ run.log({"q4_mechanism/results": table,
 run.summary["q4_mechanism/same_minus_cross_G"] = -0.004
 ```
 
+## Benchmarks: models × datasets × seeds
+
+Benchmark results always go to W&B as tables (CSV stays the published backing data). Log, in one `benchmark` run grouped with the plan:
+
+1. `benchmark/raw`: long format, one row per model × dataset × seed (`model, dataset, seed, metric, value`, plus runtime if measured). Filterable and sortable in the UI.
+2. `benchmark/summary`: one row per model × dataset with `mean, std, n_seeds, ci_low, ci_high`, the same aggregation the report uses.
+3. `benchmark/leaderboard`: one row per model with the mean over datasets, mean rank, wins, and the gap to the reference baseline.
+4. One chart per primary metric: `wandb.plot.bar` of the leaderboard, or the report's grouped bar/heatmap figure as `wandb.Image`.
+
+```python
+raw = results_df                                    # model, dataset, seed, metric, value
+summary = (raw.groupby(["model", "dataset", "metric"])["value"]
+              .agg(mean="mean", std="std", n_seeds="count").reset_index())
+summary["rank"] = summary.groupby(["dataset", "metric"])["mean"].rank(ascending=False)  # higher is better
+board = (summary.groupby(["model", "metric"])
+            .agg(mean_over_datasets=("mean", "mean"), mean_rank=("rank", "mean")).reset_index()
+            .sort_values("mean_rank"))
+run.log({"benchmark/raw": wandb.Table(dataframe=raw),
+         "benchmark/summary": wandb.Table(dataframe=summary),
+         "benchmark/leaderboard": wandb.Table(dataframe=board),
+         "benchmark/mean_rank": wandb.plot.bar(wandb.Table(dataframe=board[board.metric == PRIMARY]),
+                                               "model", "mean_rank", title=f"Mean rank on {PRIMARY} (lower is better)")})
+run.summary.update({f"leaderboard/{m}": v for m, v in board[board.metric == PRIMARY][["model", "mean_over_datasets"]].values})
+```
+
+State the metric direction in table titles or column names, use the same seeds and datasets for every model (or mark missing cells, never silently drop them), and keep model and dataset names identical to the report.
+
 ## Naming and grouping
 
 - **Run name**: `<plan-version>-<idea>-<case>-<profile>[-s<seed>]`, lowercase, descriptive: `v38-qmcr-sampled-full-s3`. Never W&B's random names or bare plan names.
