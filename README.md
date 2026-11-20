@@ -12,7 +12,7 @@ cd neo_research && ./install        # once per machine: ar_init and ar_mate on y
 ar_init ../my-project               # once per project per machine (must be a git repo with a commit)
 ```
 
-Then fill in `my-project/__board__/`:
+Then fill in `my-project/__board__/`:  
  
 | File | Committed | Contents |
 |---|---|---|
