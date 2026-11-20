@@ -1,92 +1,73 @@
 # neo_research
 
-Shared research workflows for Claude Code and Codex. One checkout serves all your projects: skills are linked in, while each project keeps its own `__board__/` (plans, reports, idea summaries, Slack and tracking settings).
+Shared research workflows for Claude Code and Codex. One checkout serves all your projects: the skills are linked in, while each project keeps its own research board (`__board__/`) and settings. Updating means `git pull`.
 
-## Quick start
+The organizing idea: **main is the paper, branches are its method sections, worktrees are candidate ideas.** Failed ideas leave only a summary; working ideas move up only after their code is compacted and reviewed by a second agent, so main stays small enough to read and debug yourself.
+
+## Setup
 
 ```bash
 git clone https://github.com/BiniyamAschalew/neo_research.git
-cd neo_research && ./install   # once per machine: ar_init and ar_mate become shell commands
-ar_init ../my-project          # once per project per machine; safe to rerun (project must be a git repo with a commit)
+cd neo_research && ./install        # once per machine: ar_init and ar_mate on your PATH
+ar_init ../my-project               # once per project per machine (must be a git repo with a commit)
 ```
 
-Then fill in two files in `my-project/__board__/`: 
+Then fill in `my-project/__board__/`:
 
 | File | Committed | Contents |
 |---|---|---|
-| `PROJECT.md` | yes | conda env, data paths, conventions |
-| `project.env` | **never** | `CONDA_ENV` (code environment for every agent, the mate and `ar_goal`; or `ENV_ACTIVATE=<command>`), `SLACK_WEBHOOK_URL` (this project's channel), `WANDB_URL` (W&B project page; entity and project are read from it) |
+| `PROJECT.md` | yes | data paths, conventions that override the defaults |
+| `project.env` | **never** | `CONDA_ENV` (or `ENV_ACTIVATE`), `SLACK_WEBHOOK_URL` ([Incoming Webhook](https://api.slack.com/messaging/webhooks) for this project's channel), `WANDB_URL` (`https://wandb.ai/<entity>/<project>`) |
 
-Requirements: git, Python 3.8+, and an agent CLI: Claude Code or Codex (others work with fewer guarantees; agents are defined in `skills/references/agents.py`). Optional: [Herdr](https://herdr.dev), a Slack [Incoming Webhook](https://api.slack.com/messaging/webhooks) per project, W&B, PyYAML (for `ar_goal`).
+Requirements: git, Python 3.9+, Claude Code and/or Codex. Optional: [Herdr](https://herdr.dev) (one tab per agent), W&B, PyYAML (`ar_goal`). Machine-wide rules such as GPU claims go in `~/.config/ar/host.md` (installed from `hosts/` when `ar_init` recognizes the machine).
 
-## Example: from idea to Slack
-
-```text
-Herdr tab 0:   cd my-project && ar_mate              # or: ar_mate codex   (first mate + Slack watcher)
-You -> mate:   "new idea: does a cosine schedule beat step decay on val AUC? plan it"
-Mate:          ar_tree new cosine-lr [--agent codex] -> worktree + tab with its own agent, which runs ar_plan
-Slack:         "my-project/cosine-lr: plan ready for review" + Experiment Card
-You:           edit the card if needed, tell the mate "approved"
-Mate:          idea agent runs ar_dev through notify_run.py (logs to this project's W&B)
-Slack:         run finished + duration, then "experiment done" + Planned vs Actual card + tracking link
-You -> mate:   failed: "close it as dead" -> only its summary returns to main
-               works:  "compact, review and promote it" -> ar_compact, ar_review, joins its branch (e.g. b1/optimization)
-Later:         more ideas --from b1; when the branch is mature: open b1, ar_compact, ar_review, graduate -> main
-```
-
-## Branch model: main is the paper, branches are its method sections
+## How it works
 
 ```text
-main                     only the best, compacted, paper-worthy code + summaries + __board__/TRACKER.md
- ├─ b1/ensembles         a method section: a few general directions, as git branches b<i>/<name>
- │   └─ worktree         candidate ideas inside that section (branch idea/<slug>)
+main                          the paper: best compacted code + summaries + __board__/TRACKER.md
+ ├─ b1/ensembles              branches = method sections: few (≤4 active), general, named b<i>/<name>
+ │   └─ worktree idea/bagging     candidate ideas inside a section
  ├─ b2/context-compression
- └─ worktree             a candidate idea that may open a new section
+ └─ worktree idea/<slug>      a candidate idea that may open a new section
 ```
 
-Branches stay few (limit 4 active by default) and general; a working idea normally joins an existing branch. `__board__/TRACKER.md` on main lists every branch and worktree, so the mate always knows what is running where.
+```text
+Herdr tab 0:  cd my-project && ar_mate          # or: ar_mate codex   (first mate + Slack watcher)
+You -> mate:  "new idea in b1: does bagging help? plan it"
+Mate:         ar_tree new bagging --from b1 -> worktree + tab with its own agent, which runs ar_plan
+Slack:        "plan ready for review" + Experiment Card    -> you edit the card, tell the mate "approved"
+Idea agent:   ar_dev, runs through notify_run.py (logs to the project's W&B)
+Slack:        "run finished" (+ duration), then "experiment done" + Planned vs Actual card
+You -> mate:  failed  -> "close it": only the summary reaches main
+              works   -> "branch it": ar_branch = compact + cross-agent review + merge into b1
+              mature  -> "merge b1":  ar_merge  = compact + review + one squash commit into main
+```
 
-Failed explorations leave only a summary (`__board__/ideas/`), never code. Each move up (worktree → branch → main) is gated twice: `ar_compact` (keep only what the result needs, rewrite it shorter and faster with identical results, prove parity), then `ar_review` (a reviewer from the other agent family critiques evidence, baselines, parity, code and fit; the author answers; up to three rounds until ACCEPT, otherwise the human decides). All tiers follow [code style](skills/references/code-style.md): reuse first, one home per entity (`models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries), hierarchical YAML configs, one `run.py` with no argparse, and a `structure.md` of every signature.
-
-`ar_mate [agent]` puts the mate rules in the agent's standing instructions (Claude: system prompt; Codex: developer instructions), so it stays the mate through long sessions. Mate and idea agents can differ, e.g. a Claude mate driving Codex ideas. Approvals default to Claude auto mode / Codex "Approve for me" (risky actions still ask); `ar_mate --ask` keeps normal prompts. It asks before anything irreversible (full runs, closes, merges, pushes) and never edits code itself.
+The mate keeps its rules in the agent's standing instructions (stays the mate in long sessions), runs with Claude auto mode / Codex "Approve for me" (`--ask` for normal prompts), never edits code itself, and asks you before anything irreversible: full runs, close/branch/merge/drop, new branches, pushes. `__board__/TRACKER.md` on main always shows every branch and worktree.
 
 ## Skills
 
+Claude `/ar_<name>`, Codex `$ar_<name>`. Commands and flags: **[SKILLS.md](SKILLS.md)**.
+
 | Skill | Use it to |
 |---|---|
-| `ar_metaplan` | sharpen an idea: prior evidence, theory, decisive design |
+| `ar_metaplan` | sharpen an idea: prior evidence, theory, decisive experiment design |
 | `ar_plan` | write a plan that opens with an editable 20-line Experiment Card |
-| `ar_dev` | implement and run it; report opens with Planned vs Actual |
-| `ar_tree` | worktrees (candidate ideas) → branches `b<i>/<name>` (method sections) → main (paper); failures return only a summary |
-| `ar_compact` | before each promotion: same results, less and cleaner code, with parity proof |
-| `ar_review` | before each promotion: Claude ↔ Codex discussion until ACCEPT or a human decision |
+| `ar_dev` | implement and run it; the report opens with Planned vs Actual |
+| `ar_note` | write a focused technical note |
+| `ar_tree` | start, close, open and drop ideas and branches; keep the tracker |
+| `ar_branch` | worktree → branch: compact, cross-agent review, merge into its parent branch |
+| `ar_merge` | branch → main: compact, cross-agent review, one squash commit into main |
 | `ar_mate` | first mate coordinating all ideas of a project |
 | `ar_goal` | overnight one-change-at-a-time tuning loop with a sealed test |
 | `ar_notify` | Slack text message when a run ends |
-| `ar_note` | focused technical note |
 
-Claude: `/ar_<name>`, Codex: `$ar_<name>`; set `AR_AGENT=codex` to make Codex the default for `ar_mate`, `ar_tree` and `ar_goal`. Commands and flags: **[SKILLS.md](SKILLS.md)**.
+Conventions every skill follows: [code style](skills/references/code-style.md) (reuse first; `models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries; hierarchical YAML configs; one `run.py` without argparse; `structure.md` of all signatures; no per-version copies), [W&B tracking](skills/references/tracking.md) (named runs, curves only on real axes, tables for results), [compaction](skills/references/compaction.md) and [review](skills/references/review.md).
 
-W&B logging is curated by [tracking conventions](skills/references/tracking.md): descriptive run names and groups, curves only along a real x-axis, one-off results as summary values or tables (no one-dot charts).
+## Updating and maintenance
 
-## What `ar_init` does
-
-- Links `.agents`, `.codex`, `AGENTS.md`, `.claude/commands`, `.claude/CLAUDE.md` to this checkout; `.claude/` stays a real folder; Claude's local settings live in `__board__/claude/`.
-- Creates `__board__/PROJECT.md` and `__board__/project.env` if missing; hides links and `project.env` from git via `.git/info/exclude`.
-- On an older setup: re-links anything that came from neo_research, keeps project-only skills/commands, moves custom `AGENTS.md`/`CLAUDE.md` text into `PROJECT.md`, never touches other `__board__/` content, backs up every replaced file to `__board__/notes/local/ar_init-backup/`. `--dry-run` previews; `--untrack` untracks old committed links.
-- Idea worktrees get the same links and use the main checkout's `project.env`, so each project's notifications and runs stay in its own channel and workspace.
-
-Linked projects follow this checkout live; keep it on a stable branch and develop neo_research in a separate clone or worktree. Machine-wide rules (e.g. GPU claims) go in `~/.config/ar/host.md`, installed from `hosts/` when recognized.
-
-## Layout and tests
-
-```text
-install            make ar_init / ar_mate shell commands
-ar_init, ar_mate   setup and first-mate launchers
-skills/<name>/     SKILL.md + scripts        adapters/claude/   slash-command wrappers
-hosts/             machine rule templates    tests/             tooling tests (not linked)
-```
-
-```bash
-python -m unittest discover -s tests && python -m unittest discover -s skills/ar_dev/tests
-```
+- **Update**: `git pull` in the neo_research checkout. Every linked project sees new skills immediately; `ar_mate` refreshes project links on start, the Slack watcher restarts itself on new code, and running agent sessions pick up changes when restarted. Nothing is ever written into the checkout, so pulls never conflict.
+- **Keep it stable**: the checkout that projects link to should stay on one branch; develop neo_research in a separate clone or `git worktree`.
+- **Upgrade an older project**: rerun `ar_init`; shared parts are re-linked, project-specific skills and text are kept (custom `AGENTS.md`/`CLAUDE.md` text moves to `PROJECT.md`), replaced files are backed up, `__board__` content is untouched. `--dry-run` previews, `--untrack` removes old committed links from git.
+- **Add a skill**: `skills/<name>/SKILL.md`, link `.agents/skills/<name>`, add `adapters/claude/<name>.md` and link `.claude/commands/<name>.md`. Agents are defined in `skills/references/agents.py`.
+- **Tests**: `python -m unittest discover -s tests && python -m unittest discover -s skills/ar_dev/tests`
