@@ -84,7 +84,10 @@ def evaluate(cfg, split, metric, log_name):
     metrics_file = Path(cfg["metrics_file"])
     metrics_file.unlink(missing_ok=True)
     command = f"{cfg['gpu_wrapper']} {cfg['eval_cmd']}".strip()
-    code, output = shell(command, {**tracking_env(), "AR_GOAL_SPLIT": split}, cfg["eval_timeout_min"])
+    branch = git("rev-parse", "--abbrev-ref", "HEAD").replace("/", "-")
+    env = {**tracking_env(), "AR_GOAL_SPLIT": split, "WANDB_RUN_GROUP": f"{branch}-goal",
+           "WANDB_JOB_TYPE": "goal-eval", "WANDB_NAME": f"{branch}-goal-{log_name}"}
+    code, output = shell(command, env, cfg["eval_timeout_min"])
     (STATE / "logs").mkdir(parents=True, exist_ok=True)
     (STATE / "logs" / f"{log_name}.log").write_text(output)
     if code or not metrics_file.exists():
@@ -156,6 +159,49 @@ Do not touch test-split code, data, evaluation or metric code. Do not commit.
 Finally write a one-line description of the change to {STATE}/change.txt."""
 
 
+class Tracker:
+    """One W&B run per loop: val metric and best-so-far as curves over iterations, a final table.
+    Inactive unless wandb is installed and WANDB_PROJECT is set in __board__/project.env."""
+
+    def __init__(self, cfg):
+        self.run = None
+        env = tracking_env()
+        try:
+            import wandb
+        except ImportError:
+            return
+        if not env.get("WANDB_PROJECT"):
+            return
+        branch = git("rev-parse", "--abbrev-ref", "HEAD").replace("/", "-")
+        try:
+            self.run = wandb.init(project=env["WANDB_PROJECT"], entity=env.get("WANDB_ENTITY"), name=f"{branch}-goal",
+                                  group=f"{branch}-goal", job_type="goal", config=cfg, resume="allow", id=f"{branch}-goal")
+            self.run.define_metric("goal/iteration")
+            self.run.define_metric("goal/*", step_metric="goal/iteration")
+        except Exception as error:  # tracking must never stop the loop
+            print(f"W&B tracking off: {error}")
+            self.run = None
+
+    def log(self, row, best):
+        if self.run and row.get("value"):
+            self.run.log({"goal/iteration": int(row["iter"]), "goal/val": float(row["value"]),
+                          "goal/best_val": best["value"], "goal/kept": int(row["decision"] == "kept")})
+
+    def finish(self, rows, best, test_value, reason):
+        if not self.run:
+            return
+        import wandb
+        table = wandb.Table(columns=["iter", "val", "decision", "change"],
+                            data=[[int(r["iter"]), r["value"], r["decision"], r["change"]] for r in rows])
+        self.run.log({"goal/attempts": table})
+        self.run.summary.update({"goal/baseline_val": best["baseline"], "goal/best_val": best["value"],
+                                 "goal/test": test_value, "goal/stop_reason": reason})
+        self.run.finish()
+
+
+TRACKER = None
+
+
 def finish(cfg, best, rows, reason, started, final_test=True):
     test_value = None
     if final_test and cfg["final_test"] and best.get("commit"):
@@ -187,6 +233,8 @@ def finish(cfg, best, rows, reason, started, final_test=True):
             + f"\nSummary: `{summary}`")
     project = Path(git("worktree", "list", "--porcelain").splitlines()[0].split(" ", 1)[1]).name
     notify(f"ar_goal {project}/{git('rev-parse', '--abbrev-ref', 'HEAD')}: {reason}", text)
+    if TRACKER:
+        TRACKER.finish(rows, best, test_value, reason)
     print(summary.read_text())
 
 
@@ -257,6 +305,8 @@ def main():
     if args.dry_run:
         return 0
 
+    global TRACKER
+    TRACKER = Tracker(cfg)
     rows = read_log()
     failures, reason = 0, "max_iters"
     clean = True
@@ -306,6 +356,8 @@ def main():
                         row["decision"] = "rejected"
             append_log(row)
             rows.append(row)
+            if TRACKER:
+                TRACKER.log(row, best)
             print(f"iter {iteration}: {row['decision']} {row.get('value', '')} {change}")
         else:
             reason = "goal reached" if reached(best["value"], cfg["goal"], cfg["direction"]) else "max_iters"

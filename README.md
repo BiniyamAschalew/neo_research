@@ -48,6 +48,8 @@ You -> mate:   "close it as dead" -> only the summary returns to main; code arch
 
 Claude: `/ar_<name>`, Codex: `$ar_<name>`. Commands and flags: **[SKILLS.md](SKILLS.md)**.
 
+W&B logging is curated by [tracking conventions](skills/references/tracking.md): descriptive run names and groups, curves only along a real x-axis, one-off results as summary values or tables (no one-dot charts).
+
 ## What `ar_init` does
 
 - Links `.agents`, `.codex`, `AGENTS.md`, `.claude/commands`, `.claude/CLAUDE.md` to this checkout; `.claude/` stays a real folder; Claude's local settings live in `__board__/claude/`.

@@ -76,7 +76,7 @@ Every plan must name the existing signatures to reuse, the new signatures truly 
 
 ## Shared Execution Conventions
 
-For executable work, read [structured execution conventions](../references/structured-execution.md). Plan semantic utility reuse and bounded restructuring, full/tiny profiles through one production pipeline, eligible tracked real-data excerpts, and explicit CUDA/MPS/CPU and checkpoint prerequisites. Apply these alongside the repository-specific contracts below; preserve archived experiments and their settings.
+For executable work, read [structured execution conventions](../references/structured-execution.md). Plan semantic utility reuse and bounded restructuring, full/tiny profiles through one production pipeline, eligible tracked real-data excerpts, and explicit CUDA/MPS/CPU and checkpoint prerequisites. Apply these alongside the repository-specific contracts below; preserve archived experiments and their settings. When runs log to W&B, read [tracking conventions](../references/tracking.md) and plan the run names/group, which metrics are curves (and their x-axis), and which results are summary values or tables.
 
 ## Verification Policy
 
@@ -205,6 +205,7 @@ After the title and metadata, write each plan in two parts:
 ## Test and Debug Validation
 
 - **Unit tests/checks**: `[exact command when included in the plan]`
+- **W&B tracking** (when used): group, run-name pattern, curves with their x-axis, summary metrics, result tables; no single-point `wandb.log` charts.
 - **Primary debug command**: `python run.py` (agent-launched runs go through `notify_run.py -- python run.py` so completion posts to Slack)
 - **Config validation**: [YAML parsing, required fields, portable paths, resolved full/tiny differences and frozen full settings.]
 - **Portable tiny acceptance**: [Actual finite forward outputs and, where trainable, optimizer updates through production code with full data unavailable; fixture provenance/hashes/size; separate outputs; explicit device behavior and available-hardware status.]

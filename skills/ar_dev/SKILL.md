@@ -67,7 +67,7 @@ _Shared observations for Claude, Codex, and the human._
 
 ## Shared Execution Conventions
 
-For executable work, read [structured execution conventions](../references/structured-execution.md). Implement semantic utility reuse and bounded restructuring, full/tiny profiles through the same production pipeline, tracked real-data excerpts and explicit device handling. Record actual forwards/optimizer updates and actual hardware status. Preserve frozen full settings and historical artifacts.
+For executable work, read [structured execution conventions](../references/structured-execution.md). Implement semantic utility reuse and bounded restructuring, full/tiny profiles through the same production pipeline, tracked real-data excerpts and explicit device handling. Record actual forwards/optimizer updates and actual hardware status. Preserve frozen full settings and historical artifacts. For any W&B logging, follow [tracking conventions](../references/tracking.md): descriptive run names and groups, curves only along a real x-axis, one-off results in `run.summary` or a `wandb.Table` with a chart, debug runs kept separate; check the dashboard has no single-point charts before reporting.
 
 ## Verification Policy
 

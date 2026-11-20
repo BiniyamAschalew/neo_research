@@ -68,6 +68,10 @@ python .agents/skills/ar_notify/scripts/slack_notify.py --report __board__/repor
 | `ar_dev` | `/ar_dev [vN]` | Follows the card; launches runs via `notify_run.py`; report opens with the card as **Planned vs Actual**; sends it to Slack |
 | `ar_note` | `/ar_note "<topic>"` | Unchanged |
 
+## W&B logging
+
+Follow [skills/references/tracking.md](skills/references/tracking.md): run names `<plan>-<idea>-<case>-<profile>-s<seed>`, group = plan, curves only along a real x-axis, final numbers in `run.summary`, condition × dataset × seed results in one `wandb.Table` with a chart, debug runs separate.
+
 ## Machine rules
 
 GPU rules for a server (for example `persist.py` claims) live in `~/.config/ar/host.md`; `ar_init` installs it from `hosts/` when it recognizes the machine. Agents read it with `__board__/PROJECT.md` at startup.
