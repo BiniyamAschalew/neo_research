@@ -32,7 +32,7 @@ Slack:         run finished + duration, then "experiment done" + Planned vs Actu
 You -> mate:   "close it as dead" -> only the summary returns to main (or "win" -> code + results merged)
 ```
 
-`ar_mate [agent]` puts the mate rules in the agent's standing instructions (Claude: system prompt; Codex: developer instructions), so it stays the mate through long sessions. Mate and idea agents can differ, e.g. a Claude mate driving Codex ideas. It asks before anything irreversible (full runs, closes, merges, pushes) and never edits code itself.
+`ar_mate [agent]` puts the mate rules in the agent's standing instructions (Claude: system prompt; Codex: developer instructions), so it stays the mate through long sessions. Mate and idea agents can differ, e.g. a Claude mate driving Codex ideas. Approvals default to Claude auto mode / Codex "Approve for me" (risky actions still ask); `ar_mate --ask` keeps normal prompts. It asks before anything irreversible (full runs, closes, merges, pushes) and never edits code itself.
 
 ## Skills
 

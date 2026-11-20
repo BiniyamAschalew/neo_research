@@ -40,13 +40,17 @@ class AgentTests(unittest.TestCase):
                 (fake / name).write_text(f"#!{sys.executable}\nimport sys, json; print(json.dumps(sys.argv[1:]))\n")
                 (fake / name).chmod(0o755)
             env = {**os.environ, "PATH": f"{fake}:{os.environ['PATH']}"}
-            for agent, flag, first in (("claude", "--append-system-prompt-file", "/ar_mate status"),
-                                       ("codex", "-c", "$ar_mate status")):
+            for agent, permission, first in (("claude", ["--permission-mode", "auto"], "/ar_mate status"),
+                                             ("codex", ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"'],
+                                              "$ar_mate status")):
                 out = subprocess.run([str(NEO / "ar_mate"), agent, "--no-watch", "--", "--model", "x"], cwd=project,
                                      env=env, text=True, capture_output=True, check=True).stdout
                 argv = json.loads(out.strip().splitlines()[-1])
-                self.assertEqual(argv[0], flag)
+                self.assertEqual(argv[:len(permission)], permission)
                 self.assertEqual(argv[-3:], ["--model", "x", first])
+                asked = subprocess.run([str(NEO / "ar_mate"), agent, "--no-watch", "--ask"], cwd=project,
+                                       env=env, text=True, capture_output=True, check=True).stdout
+                self.assertNotIn(permission[1], json.loads(asked.strip().splitlines()[-1]))
 
     def test_install_links_commands(self):
         with tempfile.TemporaryDirectory() as temp:

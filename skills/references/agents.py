@@ -5,6 +5,9 @@
     prefix       how skills are invoked in a prompt: /ar_plan (Claude) or $ar_plan (Codex)
     rules        extra arguments that make a file part of the session's standing instructions,
                  so they survive long sessions (used by the ar_mate launcher)
+    mate         default permission flags for the mate session (ar_mate --ask drops them):
+                 Claude auto mode (a classifier approves safe actions, asks for risky ones);
+                 Codex "Approve for me" (workspace-write sandbox, approvals sent to automatic review)
 """
 
 import json
@@ -18,12 +21,15 @@ AGENTS = {
         "headless": ["claude", "-p", "--permission-mode", "acceptEdits"],
         "prefix": "/",
         "rules": lambda path: ["--append-system-prompt-file", str(path)],
+        "mate": ["--permission-mode", "auto"],
     },
     "codex": {
         "interactive": ["codex"],
         "headless": ["codex", "exec", "-s", "workspace-write"],
         "prefix": "$",
         "rules": lambda path: ["-c", "developer_instructions=" + json.dumps(Path(path).read_text())],
+        "mate": ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"',
+                 "-c", 'sandbox_mode="workspace-write"'],
     },
 }
 DEFAULT = os.environ.get("AR_AGENT", "claude")
@@ -36,7 +42,7 @@ def spec(name=None):
         return AGENTS[name]
     if not shutil.which(name):
         raise SystemExit(f"Unknown agent '{name}': not installed. Known: {', '.join(AGENTS)}")
-    return {"interactive": [name], "headless": None, "prefix": "/", "rules": None}
+    return {"interactive": [name], "headless": None, "prefix": "/", "rules": None, "mate": []}
 
 
 def skill(name, agent=None):

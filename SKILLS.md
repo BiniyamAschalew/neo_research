@@ -38,7 +38,7 @@ python $T bury <slug> --question "..." --paths old_dir/ [--yes]   # clean old ex
 
 ### `ar_mate`: first mate across ideas
 ```bash
-cd my-project && ar_mate [claude|codex]         # recommended: stays the mate through long sessions
+cd my-project && ar_mate [claude|codex] [--ask]  # stays the mate through long sessions; auto approvals unless --ask
 /ar_mate status                                  # inside an existing session (rules may fade when compacted)
 python .agents/skills/ar_mate/scripts/mate_status.py [--json]
 python .agents/skills/ar_mate/scripts/mate_watch.py --ensure   # Slack watcher in the background
