@@ -22,7 +22,7 @@ The driver `scripts/goal.py` (relative to this skill, following links) runs the 
 
 Start it in its own Herdr tab so the mate can see it: `python .agents/skills/ar_goal/scripts/goal.py __board__/goal.yaml`. Rerunning resumes from `__board__/goal/best.json` and `log.tsv`.
 
-Each iteration: fresh agent session (`agent_cmd`) with the objective, best value and history of kept/rejected changes → exactly one change → diff checked against `allowed` → evaluation → commit if better than best by more than the threshold, otherwise `git reset`. Stops on goal reached, `max_iters`, `max_hours` or `max_consecutive_failures`.
+Each iteration: fresh headless agent session (`agent: claude|codex`, or any `agent_cmd`) with the objective, best value and history of kept/rejected changes → exactly one change → diff checked against `allowed` → evaluation → commit if better than best by more than the threshold, otherwise `git reset`. Stops on goal reached, `max_iters`, `max_hours` or `max_consecutive_failures`.
 
 ## Finish
 

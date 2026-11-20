@@ -6,8 +6,8 @@ Shared research workflows for Claude Code and Codex. One checkout serves all you
 
 ```bash
 git clone https://github.com/BiniyamAschalew/neo_research.git
-cd neo_research 
-./ar_init ../my-project        # once per project per machine; safe to rerun
+cd neo_research && ./install   # once per machine: ar_init and ar_mate become shell commands
+ar_init ../my-project          # once per project per machine; safe to rerun
 ```
 
 Then fill in two files in `my-project/__board__/`: 
@@ -17,22 +17,22 @@ Then fill in two files in `my-project/__board__/`:
 | `PROJECT.md` | yes | conda env, data paths, conventions |
 | `project.env` | **never** | `SLACK_WEBHOOK_URL` (this project's channel), `WANDB_URL` (W&B project page; entity and project are read from it) |
 
-Requirements: git, Python 3.8+, Claude Code and/or Codex. Optional: [Herdr](https://herdr.dev), a Slack [Incoming Webhook](https://api.slack.com/messaging/webhooks) per project, W&B, PyYAML (for `ar_goal`).
+Requirements: git, Python 3.8+, and an agent CLI: Claude Code or Codex (others work with fewer guarantees; agents are defined in `skills/references/agents.py`). Optional: [Herdr](https://herdr.dev), a Slack [Incoming Webhook](https://api.slack.com/messaging/webhooks) per project, W&B, PyYAML (for `ar_goal`).
 
 ## Example: from idea to Slack
 
 ```text
-Herdr tab 0:   cd my-project && ../neo_research/ar_mate          # first mate + Slack watcher
+Herdr tab 0:   cd my-project && ar_mate              # or: ar_mate codex   (first mate + Slack watcher)
 You -> mate:   "new idea: does a cosine schedule beat step decay on val AUC? plan it"
-Mate:          ar_tree new cosine-lr -> worktree + tab with its own agent, which runs /ar_plan
+Mate:          ar_tree new cosine-lr [--agent codex] -> worktree + tab with its own agent, which runs ar_plan
 Slack:         "my-project/cosine-lr: plan ready for review" + Experiment Card
 You:           edit the card if needed, tell the mate "approved"
-Mate:          idea agent runs /ar_dev through notify_run.py (logs to this project's W&B)
+Mate:          idea agent runs ar_dev through notify_run.py (logs to this project's W&B)
 Slack:         run finished + duration, then "experiment done" + Planned vs Actual card + tracking link
 You -> mate:   "close it as dead" -> only the summary returns to main (or "win" -> code + results merged)
 ```
 
-`ar_mate` puts the mate rules in Claude's system prompt, so it stays the mate through long sessions. It asks before anything irreversible (full runs, closes, merges, pushes) and never edits code itself.
+`ar_mate [agent]` puts the mate rules in the agent's standing instructions (Claude: system prompt; Codex: developer instructions), so it stays the mate through long sessions. Mate and idea agents can differ, e.g. a Claude mate driving Codex ideas. It asks before anything irreversible (full runs, closes, merges, pushes) and never edits code itself.
 
 ## Skills
 
@@ -47,7 +47,7 @@ You -> mate:   "close it as dead" -> only the summary returns to main (or "win" 
 | `ar_notify` | Slack text message when a run ends |
 | `ar_note` | focused technical note |
 
-Claude: `/ar_<name>`, Codex: `$ar_<name>`. Commands and flags: **[SKILLS.md](SKILLS.md)**.
+Claude: `/ar_<name>`, Codex: `$ar_<name>`; set `AR_AGENT=codex` to make Codex the default for `ar_mate`, `ar_tree` and `ar_goal`. Commands and flags: **[SKILLS.md](SKILLS.md)**.
 
 W&B logging is curated by [tracking conventions](skills/references/tracking.md): descriptive run names and groups, curves only along a real x-axis, one-off results as summary values or tables (no one-dot charts).
 
@@ -63,6 +63,7 @@ Linked projects follow this checkout live; keep it on a stable branch and develo
 ## Layout and tests
 
 ```text
+install            make ar_init / ar_mate shell commands
 ar_init, ar_mate   setup and first-mate launchers
 skills/<name>/     SKILL.md + scripts        adapters/claude/   slash-command wrappers
 hosts/             machine rule templates    tests/             tooling tests (not linked)

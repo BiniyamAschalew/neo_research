@@ -17,7 +17,7 @@ candidate_repeats: 1
 delta_std_factor: 2.0
 min_delta: null                           # set a number to override the noise threshold
 max_consecutive_failures: 3
-agent_cmd: ["claude", "-p", "--permission-mode", "acceptEdits"]   # or ["codex", "exec", "-s", "workspace-write"]
+agent: claude                             # claude | codex (default $AR_AGENT); or give agent_cmd: [...] for any CLI
 agent_timeout_min: 30
 eval_timeout_min: 120
 gpu_wrapper: ""                           # e.g. "python /path/persist_notify.py run --"

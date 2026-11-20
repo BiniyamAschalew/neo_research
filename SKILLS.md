@@ -1,11 +1,12 @@
 # Skills quick reference
 
-Claude: `/ar_<name>`. Codex: `$ar_<name>`. Scripts run from the project root; `.agents/skills/` is linked by `ar_init`.
+Claude: `/ar_<name>`. Codex: `$ar_<name>`. Default agent: `claude`, or `AR_AGENT=codex`. Scripts run from the project root; `.agents/skills/` is linked by `ar_init`.
 
 ## Setup (once per project, per machine)
 
 ```bash
-cd neo_research && ./ar_init ../my-project      # also upgrades an older setup; --dry-run to preview, --untrack for old committed links
+cd neo_research && ./install                     # once per machine: ar_init / ar_mate on your PATH
+ar_init ../my-project                            # also upgrades an older setup; --dry-run to preview, --untrack for old committed links
 ```
 
 Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conventions) and `__board__/project.env` (never committed: this project's `SLACK_WEBHOOK_URL` and `WANDB_URL`).
@@ -13,7 +14,7 @@ Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conv
 ## Typical flow
 
 ```text
-/ar_mate "start an idea: does X improve Y?"     (tab 0, main checkout)
+ar_mate [codex], then "start an idea: does X improve Y?"   (tab 0, main checkout)
   -> ar_tree new x-idea                          new worktree + Herdr tab with its own agent
   -> /ar_metaplan -> /ar_plan                     you edit the Experiment Card
   -> /ar_dev                                      runs via notify_run.py -> Slack on completion
@@ -26,7 +27,7 @@ Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conv
 ### `ar_tree`: one worktree per idea
 ```bash
 T=.agents/skills/ar_tree/scripts/ar_tree.py
-python $T new <slug> --question "..." [--agent codex] [--env <conda-env>]
+python $T new <slug> --question "..." [--agent claude|codex] [--env <conda-env>]
 python $T list
 python $T close <slug> dead|parked|win     # dry run: shows the plan, creates the summary template
 python $T close <slug> dead|parked|win --yes
@@ -37,7 +38,7 @@ python $T bury <slug> --question "..." --paths old_dir/ [--yes]   # clean old ex
 
 ### `ar_mate`: first mate across ideas
 ```bash
-cd my-project && ../neo_research/ar_mate        # recommended: stays the mate through long sessions
+cd my-project && ar_mate [claude|codex]         # recommended: stays the mate through long sessions
 /ar_mate status                                  # inside an existing session (rules may fade when compacted)
 python .agents/skills/ar_mate/scripts/mate_status.py [--json]
 python .agents/skills/ar_mate/scripts/mate_watch.py --ensure   # Slack watcher in the background

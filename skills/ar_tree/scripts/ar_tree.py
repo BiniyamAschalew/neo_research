@@ -26,13 +26,16 @@ import sys
 
 REGISTRY = "__board__/ideas.md"
 SUMMARIES = "__board__/ideas"
-COLUMNS = ["slug", "status", "question", "branch", "base", "worktree", "tab", "pane", "created", "closed"]
+COLUMNS = ["slug", "status", "question", "branch", "base", "worktree", "tab", "pane", "created", "closed", "agent"]
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 REQUIRED = ["## Question", "## Approach", "## Main results", "## Why it failed", "## Don't retry unless"]
 AGENT_LINKS = {".claude", ".agents", ".codex", "AGENTS.md"}  # ar_init links, not results
 SKIP_ARCHIVE = {"__pycache__", ".pytest_cache", ".venv", ".ipynb_checkpoints", ".DS_Store"}
 ARCHIVE = Path(os.environ.get("AR_ARCHIVE", Path.home() / "ar_archive"))
 NEO_INIT = Path(__file__).resolve().parents[3] / "ar_init"
+_AGENTS = importlib.util.spec_from_file_location("agents", Path(__file__).resolve().parents[2] / "references/agents.py")
+AGENTS = importlib.util.module_from_spec(_AGENTS)
+_AGENTS.loader.exec_module(AGENTS)
 
 
 def link_shared(tree, root):
@@ -168,7 +171,7 @@ def cmd_new(args):
     git("commit", "-q", "-m", f"idea: start {args.slug}", cwd=tree)
     link_shared(tree, root)
     row = dict(slug=args.slug, status="active", question=args.question, branch=branch, base=f"{args.base}@{base_sha}",
-               worktree=str(tree), tab="", pane="", created=date.today().isoformat(), closed="")
+               worktree=str(tree), tab="", pane="", created=date.today().isoformat(), closed="", agent=args.agent)
     if not args.no_herdr:
         created = herdr("tab", "create", "--cwd", str(tree), "--label", f"{root.name}:{args.slug}", "--no-focus")
         if created:
@@ -176,7 +179,7 @@ def cmd_new(args):
             row["pane"] = created.get("result", {}).get("root_pane", {}).get("pane_id", "")
             env = args.env or os.environ.get("CONDA_DEFAULT_ENV", "")
             prompt = f"Read __board__/IDEA.md and __board__/ideas/ in the main checkout ({root}) before planning."
-            launch = f"{args.agent} {shlex.quote(prompt)}"
+            launch = shlex.join([*AGENTS.spec(args.agent)["interactive"], prompt])
             if env:
                 launch = f"conda activate {shlex.quote(env)} && {launch}"
             if row["pane"]:
@@ -410,7 +413,7 @@ def parser():
     new.add_argument("slug")
     new.add_argument("--question", required=True)
     new.add_argument("--base", default="main")
-    new.add_argument("--agent", default="claude", help="Command started in the Herdr tab (claude, codex, ...)")
+    new.add_argument("--agent", default=AGENTS.DEFAULT, help="Agent started in the idea's Herdr tab: claude, codex, ... (default $AR_AGENT or claude)")
     new.add_argument("--env", help="Conda env to activate in the tab (default: current CONDA_DEFAULT_ENV)")
     new.add_argument("--no-herdr", action="store_true")
     lst = sub.add_parser("list")

@@ -28,7 +28,7 @@ NOTIFY = Path(__file__).resolve().parents[2] / "ar_notify/scripts/slack_notify.p
 DEFAULTS = {
     "direction": "max", "goal": None, "max_iters": 20, "max_hours": 8.0, "baseline_repeats": 3,
     "candidate_repeats": 1, "min_delta": None, "delta_std_factor": 2.0, "max_consecutive_failures": 3,
-    "agent_cmd": ["claude", "-p", "--permission-mode", "acceptEdits"], "agent_timeout_min": 30,
+    "agent": None, "agent_cmd": None, "agent_timeout_min": 30,
     "eval_timeout_min": 120, "gpu_wrapper": "", "final_test": True, "test_metric": None, "history_rows": 15,
 }
 REQUIRED = ["objective", "eval_cmd", "metrics_file", "metric", "allowed"]
@@ -45,7 +45,15 @@ def load_config(path):
     missing = [k for k in REQUIRED if k not in config]
     if missing:
         raise SystemExit(f"goal config missing: {missing}")
-    return {**DEFAULTS, **config}
+    config = {**DEFAULTS, **config}
+    if not config["agent_cmd"]:  # agent name -> its headless command (skills/references/agents.py)
+        spec = importlib.util.spec_from_file_location("agents", Path(__file__).resolve().parents[2] / "references/agents.py")
+        agents = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(agents)
+        config["agent_cmd"] = agents.spec(config["agent"])["headless"]
+        if not config["agent_cmd"]:
+            raise SystemExit(f"No headless command known for agent '{config['agent']}'; set agent_cmd in the goal config.")
+    return config
 
 
 def git(*args, check=True):

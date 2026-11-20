@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Make ar_init and ar_mate permanent shell commands (once per machine).
+
+    ./install            # links them into ~/.local/bin and adds it to PATH in your shell rc
+    ./install --dry-run
+
+Links point at this checkout, so updates here apply immediately.
+"""
+
+import argparse
+import os
+from pathlib import Path
+
+NEO = Path(__file__).resolve().parent
+COMMANDS = ["ar_init", "ar_mate"]
+BIN = Path(os.environ.get("AR_BIN", Path.home() / ".local/bin"))
+LINE = 'export PATH="$HOME/.local/bin:$PATH"  # neo_research commands'
+
+
+def shell_rcs():
+    shell = Path(os.environ.get("SHELL", "bash")).name
+    rcs = {"zsh": [".zshrc"], "bash": [".bashrc", ".bash_profile"]}.get(shell, [".profile"])
+    found = [Path.home() / rc for rc in rcs if (Path.home() / rc).exists()]
+    return found or [Path.home() / rcs[0]]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    if not args.dry_run:
+        BIN.mkdir(parents=True, exist_ok=True)
+    for name in COMMANDS:
+        link, target = BIN / name, NEO / name
+        if link.is_symlink() and Path(os.readlink(link)) == target:
+            print(f"ok      {link}")
+            continue
+        if link.exists() and not link.is_symlink():
+            print(f"skip    {link} exists and is not a link; remove it and rerun")
+            continue
+        print(f"link    {link} -> {target}")
+        if not args.dry_run:
+            if link.is_symlink():
+                link.unlink()
+            link.symlink_to(target)
+    on_path = str(BIN) in os.environ.get("PATH", "").split(os.pathsep)
+    if not on_path and BIN == Path.home() / ".local/bin":
+        for rc in shell_rcs():
+            text = rc.read_text() if rc.exists() else ""
+            if LINE not in text:
+                print(f"path    add ~/.local/bin to PATH in {rc}")
+                if not args.dry_run:
+                    with rc.open("a") as handle:
+                        handle.write(f"\n{LINE}\n")
+        print("Open a new terminal (or `source` your shell rc) to use: " + ", ".join(COMMANDS))
+    elif not on_path:
+        print(f"Add {BIN} to your PATH to use: " + ", ".join(COMMANDS))
+    else:
+        print("Ready: " + ", ".join(COMMANDS))
+
+
+if __name__ == "__main__":
+    main()

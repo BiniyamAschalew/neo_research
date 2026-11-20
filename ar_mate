@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Start the first mate for a project: Slack watcher in the background, then Claude with the
-ar_mate rules in its system prompt, so it stays the mate through long sessions and compaction.
+"""Start the first mate for a project: Slack watcher in the background, then the chosen agent
+with the ar_mate rules in its standing instructions, so it stays the mate through long sessions.
 
-    cd my-project && /path/to/neo_research/ar_mate          # or: ar_mate <project>
-    ar_mate <project> -- --model opus                        # extra flags after -- go to claude
+    ar_mate                      # in the project folder; default agent: claude (or $AR_AGENT)
+    ar_mate codex                # Codex as the mate
+    ar_mate claude --project ../my-project -- --model opus     # flags after -- go to the agent
 
-Run it in Herdr tab 0. Typing /ar_mate inside a normal session also works, but only this
-launcher keeps the rules in the system prompt.
+Claude gets the rules via --append-system-prompt-file, Codex via developer_instructions.
+Other installed agent CLIs start with the rules in their first prompt only.
 """
 
 import argparse
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
@@ -18,28 +20,38 @@ import sys
 NEO = Path(__file__).resolve().parent
 SKILL = NEO / "skills/ar_mate/SKILL.md"
 WATCH = NEO / "skills/ar_mate/scripts/mate_watch.py"
+_spec = importlib.util.spec_from_file_location("agents", NEO / "skills/references/agents.py")
+AGENTS = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(AGENTS)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("project", nargs="?", default=".")
+    parser.add_argument("agent", nargs="?", default=AGENTS.DEFAULT, help=f"{' | '.join(AGENTS.AGENTS)} | any agent CLI")
+    parser.add_argument("--project", default=".")
     parser.add_argument("--no-watch", action="store_true", help="Do not start the Slack watcher")
-    parser.add_argument("claude_args", nargs=argparse.REMAINDER, help="-- <extra claude flags>")
+    parser.add_argument("agent_args", nargs=argparse.REMAINDER, help="-- <extra agent flags>")
     args = parser.parse_args()
+    agent = AGENTS.spec(args.agent)
     project = Path(args.project).expanduser().resolve()
     listing = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=project, text=True, capture_output=True)
     if listing.returncode:
-        raise SystemExit(f"{project} is not a git repository; run ./ar_init on it first.")
+        raise SystemExit(f"{project} is not a git repository; run ar_init on it first.")
     root = Path(listing.stdout.splitlines()[0].split(" ", 1)[1])
     if root != project:
         print(f"Using the main checkout {root} (the mate never runs inside an idea worktree).")
     if not (root / ".agents/skills/ar_mate").exists():
-        raise SystemExit(f"{root} is not set up; run: {NEO}/ar_init {root}")
+        raise SystemExit(f"{root} is not set up; run: ar_init {root}")
     os.chdir(root)
     if not args.no_watch:
         subprocess.run([sys.executable, str(WATCH), "--ensure"], cwd=root)
-    extra = args.claude_args[1:] if args.claude_args[:1] == ["--"] else args.claude_args
-    command = ["claude", "--append-system-prompt-file", str(SKILL), *extra, "/ar_mate status"]
+    extra = args.agent_args[1:] if args.agent_args[:1] == ["--"] else args.agent_args
+    first = f"{AGENTS.skill('ar_mate', args.agent)} status"
+    if agent["rules"]:
+        command = [*agent["interactive"], *agent["rules"](SKILL), *extra, first]
+    else:
+        print(f"{args.agent}: no standing-instructions option known; the mate rules are only in the first prompt.")
+        command = [*agent["interactive"], *extra, f"Read {SKILL} and act as the project's first mate. Then: {first}"]
     os.execvp(command[0], command)
 
 
