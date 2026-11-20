@@ -38,7 +38,7 @@ Herdr tab 0:  cd my-project && ar_mate          # or: ar_mate codex   (first mat
 You -> mate:  "new idea in b1: does bagging help?"
 Mate:         ar_tree new bagging --from b1 --task "..."  -> .trees/bagging + tab whose agent runs
               ar_metaplan -> ar_plan -> ar_dev on its own (runs log to the project's W&B)
-Slack:        one message when the task is done: the report's Planned vs Actual card
+Slack:        one message when ar_dev ends with results: plan, results, takeaways, W&B link (≤7 sentences)
               (plus "agent needs you" only if it gets blocked)
 You -> mate:  failed  -> "close it": only the summary reaches main
               works   -> "branch it": ar_branch = compact + cross-agent review + merge into b1

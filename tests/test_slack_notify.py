@@ -32,6 +32,27 @@ class SlackNotifyTests(unittest.TestCase):
             self.assertNotIn("figures/a.png", text)
             self.assertNotIn("long detail", text)
 
+    def test_result_summary_only_for_reports(self):
+        with tempfile.TemporaryDirectory() as temp:
+            report = Path(temp) / "reports/v3.x/v3.x.md"
+            report.parent.mkdir(parents=True)
+            summary = ("## Slack summary\n- **Plan**: Swap the head on MNIST vs the MLP baseline.\n"
+                       "- **Results**: Accuracy 0.981 vs 0.975 (4 seeds).\n- **Takeaways**: Keep the head.\n"
+                       "- **W&B**: https://wandb.ai/me/p/groups/v3\n")
+            report.write_text("# Report: v3 head swap\n\n## Experiment Card\n| a | b |\n\n" + summary)
+            title, text = SLACK.result_summary(report)
+            self.assertEqual(title, "Report: v3 head swap")
+            self.assertEqual(text.count("\n"), 3)
+            self.assertIn("*Results:* Accuracy 0.981 vs 0.975 (4 seeds).", text)
+            plan = Path(temp) / "plans/v3.x.md"
+            plan.parent.mkdir()
+            plan.write_text(report.read_text())
+            with self.assertRaises(ValueError):
+                SLACK.result_summary(plan)
+            report.write_text(summary.replace("Keep the head.", "A. B. C. D. E. F."))
+            with self.assertRaises(ValueError):
+                SLACK.result_summary(report)
+
     def test_missing_webhook_skips(self):
         self.assertEqual(SLACK.notify("t", "x", keys={"SLACK_WEBHOOK_URL": ""})["status"], "skipped")
 
@@ -89,7 +110,7 @@ class SlackNotifyTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("notify_run", SCRIPTS / "notify_run.py")
         run = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(run)
-        title, text = run.message("v3 full", "python run.py", 1, 3725, ["Traceback", "ValueError: x"], None)
+        title, text, _ = run.message("v3 full", "python run.py", 1, 3725, ["Traceback", "ValueError: x"], None)
         self.assertIn("v3 full FAILED (exit 1) in 1h02m", title)
         self.assertIn("ValueError: x", text)
 

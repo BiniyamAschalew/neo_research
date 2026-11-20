@@ -5,7 +5,7 @@ Settings are per project: <main checkout>/__board__/project.env (never committed
 from the current directory, so idea worktrees use their project's webhook. AR_SLACK_ENV
 overrides the file. Markdown tables are sent as aligned monospace text tables.
 
-    python slack_notify.py --report __board__/reports/v3.x/v3.x.md
+    python slack_notify.py --report __board__/reports/v3.x/v3.x.md   # posts the report's ## Slack summary
     python slack_notify.py --title "E12 done" --text "AUC +0.01"
 """
 
@@ -121,6 +121,28 @@ def from_report(report):
     return title, to_slack(section) + f"\n\nReport: `{report}`"
 
 
+SUMMARY = ("Plan", "Results", "Takeaways", "W&B")
+MAX_SENTENCES = 7
+
+
+def result_summary(report):
+    """The Slack message of a finished experiment: the report's `## Slack summary` lines Plan, Results,
+    Takeaways (at most MAX_SENTENCES sentences in all) and W&B (run or group link). Plans are never posted."""
+    report = Path(report)
+    if report.parent.parent.name != "reports":
+        raise ValueError(f"{report} is not a report under __board__/reports/; only finished experiments are posted")
+    body = report.read_text()
+    title = next((l[2:].strip() for l in body.splitlines() if l.startswith("# ")), report.stem)
+    section = re.search(r"^## Slack summary[^\n]*\n(.*?)(?=^#{1,2} |^======|\Z)", body, re.M | re.S)
+    found = dict(re.findall(r"^[-*\s]*\**(Plan|Results|Takeaways|W&B)\**:\**\s*(.+?)\s*$", section.group(1), re.M)) if section else {}
+    if missing := [k for k in SUMMARY if not found.get(k)]:
+        raise ValueError(f"{report} has no complete '## Slack summary' (missing {', '.join(missing)})")
+    sentences = sum(len(re.findall(r"[.!?](?=\s|$)", found[k])) or 1 for k in SUMMARY[:3])
+    if sentences > MAX_SENTENCES:
+        raise ValueError(f"Slack summary has {sentences} sentences; keep it to {MAX_SENTENCES}")
+    return title, "\n".join(f"*{k}:* {found[k]}" for k in SUMMARY)
+
+
 def _key(path):
     path = Path(path).resolve()
     return f"{path}\t{path.stat().st_mtime_ns}"
@@ -159,10 +181,10 @@ def throttled(webhook, message):
     return ""
 
 
-def notify(title, text, keys=None, dry_run=False):
+def notify(title, text, keys=None, dry_run=False, link=True):
     keys = keys or load_keys()
     message = f"*{title}*\n{text}".strip()
-    if keys.get("WANDB_URL"):
+    if link and keys.get("WANDB_URL"):
         message += f"\nW&B: {keys['WANDB_URL']}"
     if len(message) > MAX_TEXT:
         message = message[:MAX_TEXT - 4] + "\n…"
@@ -183,17 +205,20 @@ def notify(title, text, keys=None, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--report", type=Path, help="Report .md: sends its title and top card")
+    parser.add_argument("--report", type=Path, help="Report .md: sends its title and ## Slack summary")
     parser.add_argument("--title")
     parser.add_argument("--text", default="")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     title, text = args.title or "AutoResearch", to_slack(args.text)
     if args.report:
-        title, card = from_report(args.report)
+        try:
+            title, text = result_summary(args.report)
+        except ValueError as error:
+            print(json.dumps({"status": "refused", "reason": str(error)}))
+            return 0
         title = args.title or title
-        text = f"{text}\n{card}".strip()
-    result = notify(title, text, dry_run=args.dry_run)
+    result = notify(title, text, dry_run=args.dry_run, link=not args.report)
     if args.report and result["status"] == "sent":
         mark_sent(args.report)
     print(json.dumps(result))

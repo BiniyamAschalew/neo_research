@@ -9,8 +9,8 @@ Use --notify only for a run that outlives the task (launched in the background a
 only if the run completes (exit 0), never for errors or Ctrl+C.
 
 Output streams to the terminal as usual; the wrapper exits with the command's exit code.
-If a report under __board__/reports/ was written during the run, its card is included;
-otherwise the last lines of output are.
+If a report under __board__/reports/ was written during the run, its ## Slack summary is sent;
+otherwise the status line and the last lines of output are.
 """
 
 import argparse
@@ -54,12 +54,15 @@ def message(name, command, code, seconds, tail, report):
     status = "finished" if code == 0 else ("interrupted" if code in (130, -2) else f"FAILED (exit {code})")
     title = f"{git_label()}: {name or command[:60]} {status} in {duration(seconds)}"
     text = f"`{command}` on {socket.gethostname()}"
-    if report:
-        _, card = SLACK.from_report(report)
-        text += "\n" + card
-    elif tail:
+    try:
+        _, summary = SLACK.result_summary(report) if report else (None, "")
+    except ValueError:
+        summary = ""
+    if summary:
+        return title, summary, False  # the summary carries its own W&B link
+    if tail:
         text += "\nLast output:\n```\n" + "\n".join(tail) + "\n```"
-    return title, text
+    return title, text, True
 
 
 def main():
@@ -99,8 +102,8 @@ def main():
             tail.append(pending.decode(errors="replace").rstrip()[:200])
         if args.notify and code == 0:  # completed runs only; failures stay in the terminal and logs
             report = new_report(args.report_glob, started)
-            title, text = message(args.name, shlex.join(command), code, time.time() - started, list(tail), report)
-            result = SLACK.notify(title, text)
+            title, text, link = message(args.name, shlex.join(command), code, time.time() - started, list(tail), report)
+            result = SLACK.notify(title, text, link=link)
             if report and result["status"] == "sent":
                 SLACK.mark_sent(report)
             print(f"[ar_notify] {json.dumps(result)}", file=sys.stderr)

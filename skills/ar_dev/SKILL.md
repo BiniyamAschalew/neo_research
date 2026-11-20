@@ -61,8 +61,18 @@ Write `__board__/reports/<plan-basename>/<plan-basename>.md` (keep a project's e
 
 After `======`: **Methods and metrics** (question, compared methods, data/splits, controls, seeds and replication unit, metric definitions with direction and aggregation, uncertainty method); **Findings** (one subsection per result family, each figure/table introduced, captioned and interpreted with effect size, uncertainty and whether the decision rule passed; at most 3 main figures, every plot with its backing CSV); **Reproduction** (commit, experiment config, profile, environment, seeds, fixture manifest, W&B run/group link); **Changes and structure** (reused/added/deleted code, config layout); **Caveats** (failed runs, limits, unverified backends, exact commands and numbers). Never fabricate artifacts or report a tiny run as a scientific result.
 
+End the report (after Caveats) with the Slack message, at most 7 sentences in all, focused on the results:
+
+```markdown
+## Slack summary
+- **Plan**: [one sentence: what was tested, on what data, against which baseline]
+- **Results**: [1-3 sentences: the decisive numbers with uncertainty]
+- **Takeaways**: [1-2 sentences: what it means for the question and what comes next]
+- **W&B**: [run or group URL of these results]
+```
+
 For scientific results, publish per [artifact policy](../references/artifact-policy.md) (selected figures, backing tables, core code, `metadata.json`; raw outputs stay in ignored `local/`) and run its bundle check.
 
 ## 5. Finish
 
-Update `STATUS.md` (see board conventions). Commit the code, configs and board files of this iteration in the current worktree or branch (never push, never commit data or secrets). Then send the card: `python .agents/skills/ar_notify/scripts/slack_notify.py --report <report.md>` (a `skipped` or `failed` status never changes the outcome).
+Update `STATUS.md` (see board conventions). Commit the code, configs and board files of this iteration in the current worktree or branch (never push, never commit data or secrets). Then, only when the task produced experiment results (not for a plan, a tiny/debug-only run or a failed run), send its Slack summary: `python .agents/skills/ar_notify/scripts/slack_notify.py --report <report.md>` (a `skipped`, `failed` or `refused` status never changes the outcome; fix a `refused` summary and resend once).

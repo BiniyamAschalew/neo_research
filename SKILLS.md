@@ -56,7 +56,7 @@ Inside an idea worktree: each iteration a fresh agent (`agent: claude|codex`) ma
 python .agents/skills/ar_notify/scripts/notify_run.py --notify --name "v3 full" -- python run.py
 python .agents/skills/ar_notify/scripts/slack_notify.py --report __board__/reports/v3/v3.md
 ```
-`notify_run.py` streams output live, passes the project's W&B entity/project and keeps the run's exit code. It is quiet by default (a task's one Slack message is its final report); with `--notify` it posts status, duration and the new report card (or output tail) when the run ends. Messages are text with text tables and end with the `WANDB_URL` link; no webhook means `skipped`.
+`notify_run.py` streams output live, passes the project's W&B entity/project and keeps the run's exit code. It is quiet by default (a task's one Slack message is ar_dev's result summary); with `--notify` it posts on success the `## Slack summary` of a report written during the run (or the output tail). `slack_notify.py --report` sends only a report's Slack summary (plan, results, takeaways, W&B link; at most 7 sentences) and refuses plans; no webhook means `skipped`.
 
 ## Planning, running, notes
 | Skill | Run | Notes |
