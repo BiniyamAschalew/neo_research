@@ -37,10 +37,12 @@ python $T bury <slug> --question "..." --paths old_dir/ [--yes]   # clean old ex
 
 ### `ar_mate`: first mate across ideas
 ```bash
-/ar_mate status
+cd my-project && ../neo_research/ar_mate        # recommended: stays the mate through long sessions
+/ar_mate status                                  # inside an existing session (rules may fade when compacted)
 python .agents/skills/ar_mate/scripts/mate_status.py [--json]
+python .agents/skills/ar_mate/scripts/mate_watch.py --ensure   # Slack watcher in the background
 ```
-Run in Herdr tab 0 on the main checkout. It keeps `python .agents/skills/ar_mate/scripts/mate_watch.py` running in a `mate-watch` tab, which posts to Slack (no tokens) when a plan is ready for review, a report lands, a goal loop ends or an idea agent is blocked. Shows every idea's agent state, phase, latest report/goal progress and GPU use; starts ideas, hands instructions to idea tabs (`herdr pane run`), and escalates card approvals, closes, merges and pushes to you. Never edits idea code.
+Run in Herdr tab 0 on the main checkout. It keeps the Slack watcher running in the background (`mate_watch.py --ensure`), which posts to Slack (no tokens) when a plan is ready for review, a report lands, a goal loop ends or an idea agent is blocked. Shows every idea's agent state, phase, latest report/goal progress and GPU use; starts ideas, hands instructions to idea tabs (`herdr pane run`), and escalates card approvals, closes, merges and pushes to you. Never edits idea code.
 
 ### `ar_goal`: overnight improvement loop
 ```bash

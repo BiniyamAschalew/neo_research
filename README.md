@@ -20,8 +20,7 @@ Then open `claude` (or `codex`) in `../my-project` and run e.g. `/ar_plan "test 
 
 ```text
 Terminal:      cd neo_research && ./ar_init ../my-project           # once per project (safe to rerun)
-Herdr tab 0:   cd ../my-project && claude
-               /ar_mate                                  # also starts the Slack watcher (mate-watch tab)
+Herdr tab 0:   cd ../my-project && ../neo_research/ar_mate      # first mate + Slack watcher
 You -> mate:   "new idea: does a cosine schedule beat step decay on val AUC? plan it"
 Mate:          ar_tree new cosine-lr  -> new worktree + Herdr tab with its own agent,
                tells it to run /ar_plan (or /ar_metaplan first)
@@ -32,7 +31,7 @@ Slack:         run finished/FAILED + duration, then "experiment done" + Planned 
 You -> mate:   "close it as dead" (or win/parked) -> summary to main, code archived
 ```
 
-You only talk to the mate; it never edits code and asks before anything irreversible (full runs, closes, merges, pushes). Long tuning runs: ask the mate for an `/ar_goal` loop in the idea.
+`ar_mate` starts Claude with the mate rules in its system prompt, so it stays the first mate through long sessions and compaction (typing `/ar_mate` in a plain session works too, but can fade in long sessions). You only talk to the mate; it never edits code and asks before anything irreversible (full runs, closes, merges, pushes). Long tuning runs: ask the mate for an `/ar_goal` loop in the idea.
 
 ## Skills
 
@@ -96,6 +95,7 @@ Messages come from `notify_run.py` (every run's end), `mate_watch.py` (plan read
 
 ```text
 ar_init               project setup command
+ar_mate               start a project's first mate (watcher + Claude with mate rules in the system prompt)
 skills/<name>/        skill definitions (SKILL.md) and their scripts
 adapters/claude/      thin Claude slash-command wrappers that load the skills
 skills/references/    shared execution and artifact-publication conventions

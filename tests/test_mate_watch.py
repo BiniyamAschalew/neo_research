@@ -59,6 +59,24 @@ class MateWatchTests(unittest.TestCase):
             out = watch.check(repo, state, send=False)
             self.assertIn("experiment done", out[0][1])
 
+    def test_ensure_starts_once(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "proj"
+            repo.mkdir()
+            sh("git", "init", "-q", "-b", "main", cwd=repo)
+            env = {**os.environ, "AR_SLACK_ENV": str(Path(temp) / "none.env")}
+            watch = NEO / "skills/ar_mate/scripts/mate_watch.py"
+            first = subprocess.run([sys.executable, str(watch), "--ensure", "--interval", "1"], cwd=repo, env=env, text=True, capture_output=True)
+            self.assertIn("started", first.stdout)
+            pid_file = repo / ".git/ar_mate_watch.pid"
+            for _ in range(50):
+                if pid_file.exists():
+                    break
+                import time; time.sleep(0.1)
+            second = subprocess.run([sys.executable, str(watch), "--ensure"], cwd=repo, env=env, text=True, capture_output=True)
+            self.assertIn("already running", second.stdout)
+            os.kill(int(pid_file.read_text()), 15)
+
 
 if __name__ == "__main__":
     unittest.main()

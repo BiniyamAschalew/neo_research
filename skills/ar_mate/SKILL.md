@@ -9,9 +9,8 @@ You are the single agent the human talks to about this project. Idea agents do t
 
 ## Start of a session
 
-Make sure the Slack watcher runs (one per project): if `herdr pane list` shows no `mate-watch` tab, start it with
-`herdr tab create --cwd <main checkout> --label mate-watch --no-focus`, then `herdr pane run <pane> "python .agents/skills/ar_mate/scripts/mate_watch.py"`
-(without Herdr: `nohup python .agents/skills/ar_mate/scripts/mate_watch.py > /dev/null 2>&1 &`).
+Make sure the Slack watcher runs (one per project, already done when you were started by the `ar_mate` launcher):
+`python .agents/skills/ar_mate/scripts/mate_watch.py --ensure` (starts it in the background unless it is running).
 It posts to Slack, without using tokens, when a plan is ready for review, an experiment report lands, an `ar_goal` loop ends, or an idea agent is blocked. Runs launched through `notify_run.py` also post when they end.
 
 ## Each turn

@@ -3,6 +3,7 @@
 
     python .agents/skills/ar_mate/scripts/mate_watch.py            # run in its own Herdr tab (or nohup)
     python .agents/skills/ar_mate/scripts/mate_watch.py --once     # one check, then exit
+    python .agents/skills/ar_mate/scripts/mate_watch.py --ensure   # start in the background unless already running
 
 Every --interval seconds it checks each open idea worktree and sends one message for:
   - a new plan                   -> "plan ready for review" with its Experiment Card (once)
@@ -15,7 +16,10 @@ Plans/reports an agent or notify_run already posted are skipped. Costs no tokens
 import argparse
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import time
 
 HERE = Path(__file__).resolve().parent
@@ -81,14 +85,39 @@ def check(root, state, send=True):
     return out
 
 
+def running(pid_path):
+    try:
+        pid = int(pid_path.read_text())
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError):
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--interval", type=int, default=60)
     parser.add_argument("--once", action="store_true")
+    parser.add_argument("--ensure", action="store_true", help="Start in the background unless already running")
     args = parser.parse_args()
     root = AR_TREE.main_root()
     common = (root / AR_TREE.git("rev-parse", "--git-common-dir", cwd=root)).resolve()
-    state_path = common / "ar_mate_watch.json"
+    state_path, pid_path = common / "ar_mate_watch.json", common / "ar_mate_watch.pid"
+    pid = running(pid_path)
+    if args.ensure:
+        if pid:
+            print(f"mate watcher already running for {root.name} (pid {pid})")
+            return
+        with open(common / "ar_mate_watch.log", "a") as log:
+            child = subprocess.Popen([sys.executable, __file__, "--interval", str(args.interval)], cwd=root,
+                                     stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        print(f"mate watcher started for {root.name} (pid {child.pid}); log: {common / 'ar_mate_watch.log'}")
+        return
+    if pid and not args.once and pid != os.getpid():
+        print(f"mate watcher already running for {root.name} (pid {pid})")
+        return
+    if not args.once:
+        pid_path.write_text(str(os.getpid()))
     state = json.loads(state_path.read_text()) if state_path.exists() else {"files": {}, "agents": {}, "started": False}
     print(f"watching {root.name} ideas every {args.interval}s; Slack keys: {SLACK.KEY_FILE}", flush=True)
     while True:
