@@ -10,7 +10,9 @@ Every --interval seconds it checks each open idea worktree and sends one message
   - a new or updated report      -> "experiment done" with its Planned vs Actual card
   - a finished ar_goal loop      -> the goal summary
   - an idea agent turning blocked -> "needs you" (Herdr state, best effort)
-Plans/reports an agent or notify_run already posted are skipped. Costs no tokens.
+Plans/reports an agent or notify_run already posted are not re-sent to Slack. Costs no tokens.
+Every event (plus an agent finishing its turn) is also appended to an inbox in the git common
+dir (.git/ar_mate_inbox.md), which the mate reads with `mate_status.py --inbox` instead of polling agents.
 """
 
 import argparse
@@ -52,8 +54,21 @@ def message(project, slug, kind, path):
     return f"{project}/{slug}: {label} — {title}", card
 
 
+def inbox_path(root):
+    """Machine-local event log, kept next to the watcher state in the git common dir (never committed)."""
+    return (root / AR_TREE.git("rev-parse", "--git-common-dir", cwd=root)).resolve() / "ar_mate_inbox.md"
+
+
+def to_inbox(root, slug, title, path=None):
+    inbox = inbox_path(root)
+    inbox.parent.mkdir(parents=True, exist_ok=True)
+    where = f" ({path})" if path else ""
+    with inbox.open("a") as handle:
+        handle.write(f"- {time.strftime('%Y-%m-%d %H:%M')} {slug}: {title}{where}\n")
+
+
 def check(root, state, send=True):
-    """Return the messages for changes since the last check; update state in place."""
+    """Return the Slack messages for changes since the last check; log every change to the inbox."""
     out = []
     for row in AR_TREE.read_rows(root):
         tree = Path(row["worktree"]) if row["worktree"] else None
@@ -67,12 +82,17 @@ def check(root, state, send=True):
                 continue
             first_sight = key not in state["files"] and not state["started"]
             state["files"][key] = mtime
-            if first_sight or SLACK.already_sent(path):
+            if first_sight:
                 continue
-            out.append((path, *message(root.name, row["slug"], kind, path)))
+            title, text = message(root.name, row["slug"], kind, path)
+            to_inbox(root, row["slug"], title.split(": ", 1)[-1], path.relative_to(tree))
+            if not SLACK.already_sent(path):
+                out.append((path, title, text))
         agent = STATUS.agent_state(row["pane"])
         previous = state["agents"].get(row["slug"])
         state["agents"][row["slug"]] = agent
+        if agent in ("blocked", "done") and previous not in (None, agent):
+            to_inbox(root, row["slug"], "agent needs you" if agent == "blocked" else "agent finished its turn")
         if agent == "blocked" and previous not in (None, "blocked"):
             out.append((None, f"{root.name}/{row['slug']}: agent needs you", f"Open Herdr tab `{root.name}:{row['slug']}`."))
     state["started"] = True

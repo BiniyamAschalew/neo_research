@@ -58,6 +58,10 @@ class MateWatchTests(unittest.TestCase):
             os.utime(report, ns=(stat.st_atime_ns, stat.st_mtime_ns + 2_000_000_000))  # coarse-mtime filesystems
             out = watch.check(repo, state, send=False)
             self.assertIn("experiment done", out[0][1])
+            new = watch.STATUS.unread(repo)                                     # mate reads events, not agents
+            self.assertEqual([("plan ready" in l, "experiment done" in l) for l in new][0], (True, False))
+            self.assertTrue(any("experiment done" in l and "v1.x.md" in l for l in new))
+            self.assertEqual(watch.STATUS.unread(repo), [])                     # cursor advanced
 
     def test_ensure_starts_once(self):
         with tempfile.TemporaryDirectory() as temp:

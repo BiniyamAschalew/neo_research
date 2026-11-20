@@ -2,6 +2,7 @@
 """One-screen status of every idea in the project: phase, agent state, latest result, GPUs.
 
     python mate_status.py [--json]
+    python mate_status.py --inbox      # only events since you last asked (plans, reports, goals, blocked/finished agents)
 """
 
 import argparse
@@ -71,11 +72,28 @@ def gpus():
             for l in out.splitlines() if l.strip()]
 
 
+def unread(root):
+    """Inbox lines written by mate_watch since the last call; advances the read cursor."""
+    common = (root / AR_TREE.git("rev-parse", "--git-common-dir", cwd=root)).resolve()
+    inbox = common / "ar_mate_inbox.md"
+    cursor = common / "ar_mate_inbox.pos"
+    text = inbox.read_text() if inbox.exists() else ""
+    start = int(cursor.read_text()) if cursor.exists() else 0
+    start = start if start <= len(text) else 0
+    cursor.write_text(str(len(text)))
+    return [line for line in text[start:].splitlines() if line.strip()]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--inbox", action="store_true", help="Print new watcher events only")
     args = parser.parse_args()
     root = AR_TREE.main_root()
+    if args.inbox:
+        lines = unread(root)
+        print("\n".join(lines) if lines else "no new events")
+        return
     ideas = [idea_status(r) for r in AR_TREE.read_rows(root) if r["status"] in {"active", "parked"}]
     report = {"project": str(root), "ideas": ideas, "gpus": gpus(),
               "closed": sum(1 for r in AR_TREE.read_rows(root) if r["status"] not in {"active", "parked"})}

@@ -60,7 +60,7 @@ Claude `/ar_<name>`, Codex `$ar_<name>`. Commands and flags: **[SKILLS.md](SKILL
 | `ar_tree` | start, close, open and drop ideas and branches; keep the tracker |
 | `ar_branch` | worktree → branch: compact, cross-agent review, merge into its parent branch |
 | `ar_merge` | branch → main: compact, cross-agent review, one squash commit into main |
-| `ar_mate` | first mate coordinating all ideas of a project |
+| `ar_mate` | first mate: hands each task off once to an idea tab, then reports only watcher events (plans, results, blocked agents); never polls agents |
 | `ar_goal` | overnight one-change-at-a-time tuning loop with a sealed test |
 | `ar_notify` | Slack text message when a run ends |
 
