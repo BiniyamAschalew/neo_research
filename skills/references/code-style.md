@@ -8,7 +8,7 @@ Read before planning, implementing or compacting research code. Goal: however ma
 2. **One entity, one home.** Code is organized by what it is, not by which experiment introduced it. There are no per-experiment or per-version code copies (`runs/run_v38.py`, `config/v38/`, `model_v2.py`); experiment history lives in git commits and reports.
 3. **Configs, not arguments.** Every run is selected by YAML. Entry files set visible module-level constants and never parse command-line arguments, so the debugger starts `python run.py` with no setup.
 4. **Restructure continuously.** When a second variant appears, extract the shared part into the entity's base class or a `utils/` sub-module; when a variant dies, delete its code and config.
-5. **Compact at every promotion.** Exploration code may be rough; code that moves to a direction branch or to main is first rewritten for clarity and efficiency with unchanged behavior (`ar_compact`).
+5. **Compact at every promotion.** Exploration code may be rough; code that moves to a b<i>/<name> branch or to main is first rewritten for clarity and efficiency with unchanged behavior (`ar_compact`).
 
 ## Layout
 

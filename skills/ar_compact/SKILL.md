@@ -1,15 +1,15 @@
 ---
 name: ar_compact
-description: Compact an idea worktree or a direction branch before it is promoted (worktree -> direction branch) or graduated (direction branch -> main). Keep only the components the result depends on, rewrite them to be shorter, clearer and more efficient with identical behavior, prove parity, refresh structure.md and write __board__/COMPACTION.md, which ar_tree requires before promote/graduate.
+description: Compact an idea worktree or a b<i>/<name> branch before it is promoted (worktree -> branch) or graduated (branch -> main). Keep only the components the result depends on, rewrite them to be shorter, clearer and more efficient with identical behavior, prove parity, refresh structure.md and write __board__/COMPACTION.md, which ar_tree requires before promote/graduate.
 ---
 
 # AR Compact
 
-A promotion moves code up one tier: exploration worktree → direction branch → main. Each move is a compression: what arrives must be smaller and cleaner than what left, with the same results. Read [code style](../references/code-style.md) first.
+A promotion moves code up one tier: candidate-idea worktree → branch (method section) → main (paper). Each move is a compression: what arrives must be smaller and cleaner than what left, with the same results. Read [code style](../references/code-style.md) first.
 
 ## 1. Decide what survives (with the human)
 
-1. Read the idea's reports or the direction's idea summaries, `structure.md` and the diff against the base: `git diff --stat <base>...HEAD`.
+1. Read the idea's reports or the branch's idea summaries, `structure.md` and the diff against the base: `git diff --stat <base>...HEAD`.
 2. List the components the claimed result actually depends on: the winning variant, its data path, metric and the configs that reproduce the headline result. Everything else (rejected variants, sweeps, debug scaffolding, one-off analysis, duplicated helpers) is removed.
 3. Show the human this keep/remove list and the target result to preserve (experiment name, metric, value) before rewriting.
 
@@ -33,7 +33,7 @@ Rerun the same tiny profile and tests; save to `__board__/compaction/after/`. Me
 Refresh `structure.md`. Write `__board__/COMPACTION.md`:
 
 ```markdown
-# Compaction: <idea or direction> -> <target branch>
+# Compaction: <idea or branch> -> <target branch>
 
 **Date**: YYYY-MM-DD | **Agent**: ... | **Base**: <base branch>@<sha>
 **Kept**: <components, one line each>

@@ -30,20 +30,23 @@ You:           edit the card if needed, tell the mate "approved"
 Mate:          idea agent runs ar_dev through notify_run.py (logs to this project's W&B)
 Slack:         run finished + duration, then "experiment done" + Planned vs Actual card + tracking link
 You -> mate:   failed: "close it as dead" -> only its summary returns to main
-               works:  "compact, review and promote it as a new direction" -> ar_compact, ar_review, branch dir/schedules
-Later:         more explorations --from schedules; when the direction is mature: open, ar_compact, graduate -> main
+               works:  "compact, review and promote it" -> ar_compact, ar_review, joins its branch (e.g. b1/optimization)
+Later:         more ideas --from b1; when the branch is mature: open b1, ar_compact, ar_review, graduate -> main
 ```
 
-## Branch model: keep main small
+## Branch model: main is the paper, branches are its method sections
 
 ```text
-main            only the best, compacted, paper-worthy code + summaries of everything tried
- ├─ dir/<name>  a working direction (one per trend: dir/context-compression, dir/ensembling, ...)
- │   └─ worktree  explorations going deeper in that direction
- └─ worktree      new explorations from main
+main                     only the best, compacted, paper-worthy code + summaries + __board__/TRACKER.md
+ ├─ b1/ensembles         a method section: a few general directions, as git branches b<i>/<name>
+ │   └─ worktree         candidate ideas inside that section (branch idea/<slug>)
+ ├─ b2/context-compression
+ └─ worktree             a candidate idea that may open a new section
 ```
 
-Failed explorations leave only a summary (`__board__/ideas/`), never code. Each move up (worktree → direction → main) is gated twice: `ar_compact` (keep only what the result needs, rewrite it shorter and faster with identical results, prove parity), then `ar_review` (a reviewer from the other agent family critiques evidence, baselines, parity, code and fit; the author answers; up to three rounds until ACCEPT, otherwise the human decides). All tiers follow [code style](skills/references/code-style.md): reuse first, one home per entity (`models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries), hierarchical YAML configs, one `run.py` with no argparse, and a `structure.md` of every signature.
+Branches stay few (limit 4 active by default) and general; a working idea normally joins an existing branch. `__board__/TRACKER.md` on main lists every branch and worktree, so the mate always knows what is running where.
+
+Failed explorations leave only a summary (`__board__/ideas/`), never code. Each move up (worktree → branch → main) is gated twice: `ar_compact` (keep only what the result needs, rewrite it shorter and faster with identical results, prove parity), then `ar_review` (a reviewer from the other agent family critiques evidence, baselines, parity, code and fit; the author answers; up to three rounds until ACCEPT, otherwise the human decides). All tiers follow [code style](skills/references/code-style.md): reuse first, one home per entity (`models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries), hierarchical YAML configs, one `run.py` with no argparse, and a `structure.md` of every signature.
 
 `ar_mate [agent]` puts the mate rules in the agent's standing instructions (Claude: system prompt; Codex: developer instructions), so it stays the mate through long sessions. Mate and idea agents can differ, e.g. a Claude mate driving Codex ideas. Approvals default to Claude auto mode / Codex "Approve for me" (risky actions still ask); `ar_mate --ask` keeps normal prompts. It asks before anything irreversible (full runs, closes, merges, pushes) and never edits code itself.
 
@@ -54,7 +57,7 @@ Failed explorations leave only a summary (`__board__/ideas/`), never code. Each 
 | `ar_metaplan` | sharpen an idea: prior evidence, theory, decisive design |
 | `ar_plan` | write a plan that opens with an editable 20-line Experiment Card |
 | `ar_dev` | implement and run it; report opens with Planned vs Actual |
-| `ar_tree` | explorations (worktrees) → directions (`dir/*` branches) → main; failures return only a summary |
+| `ar_tree` | worktrees (candidate ideas) → branches `b<i>/<name>` (method sections) → main (paper); failures return only a summary |
 | `ar_compact` | before each promotion: same results, less and cleaner code, with parity proof |
 | `ar_review` | before each promotion: Claude ↔ Codex discussion until ACCEPT or a human decision |
 | `ar_mate` | first mate coordinating all ideas of a project |

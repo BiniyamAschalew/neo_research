@@ -86,7 +86,7 @@ def main():
     print(f"{'idea':<24} {'agent':<8} {'phase':<22} {'latest report / goal'}")
     for i in ideas:
         last = i.get("goal") or i.get("latest_report") or i.get("latest_plan") or "-"
-        print(f"{('dir/' if i['kind'] == 'direction' else '') + i['slug']:<24} {i.get('agent') or '-':<8} {(i.get('phase') or i['status'])[:22]:<22} {last}"
+        print(f"{(i['branch'] if i['kind'] in ('branch', 'direction') else i['slug']):<24} {i.get('agent') or '-':<8} {(i.get('phase') or i['status'])[:22]:<22} {last}"
               + ("  [uncommitted]" if i.get("dirty") else ""))
     for g in report["gpus"]:
         print(f"GPU{g['gpu']}: {g['mem_used_mib']}/{g['mem_total_mib']} MiB, {g['util_pct']}% (persist.py filler counts as used)")

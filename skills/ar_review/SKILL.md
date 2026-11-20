@@ -1,6 +1,6 @@
 ---
 name: ar_review
-description: Cross-agent discussion before ar_tree promote (worktree -> direction) and graduate (direction -> main). A reviewer from the other agent family (Codex for Claude work, Claude for Codex work) critiques evidence, baselines, leakage, compaction parity, code style and fit, read-only; the author answers each finding; up to three rounds, then ACCEPT or the human decides. ar_tree requires an ACCEPT in __board__/REVIEW.md newer than any code change.
+description: Cross-agent discussion before ar_tree promote (worktree -> branch) and graduate (branch -> main). A reviewer from the other agent family (Codex for Claude work, Claude for Codex work) critiques evidence, baselines, leakage, compaction parity, code style and fit, read-only; the author answers each finding; up to three rounds, then ACCEPT or the human decides. ar_tree requires an ACCEPT in __board__/REVIEW.md newer than any code change.
 ---
 
 # AR Review

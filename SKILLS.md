@@ -20,31 +20,31 @@ ar_mate [codex], then "start an idea: does X improve Y?"   (tab 0, main checkout
   -> /ar_dev                                      runs via notify_run.py -> Slack on completion
   -> /ar_goal (optional, overnight tuning)
   -> ar_tree close x-idea dead|parked             failed: summary only
-  -> /ar_compact, /ar_review, ar_tree promote x-idea --new <dir>   works: compacted, reviewed code becomes dir/<dir>
-  -> ar_tree new y --from <dir> ... promote --into <dir>   go deeper in the direction
-  -> ar_tree open <dir>, /ar_compact, /ar_review, ar_tree graduate <dir>   best version -> main
+  -> /ar_compact, /ar_review, ar_tree promote x-idea --into b1   works: joins its branch (or --new <name>: next b<i>/<name>)
+  -> ar_tree new y --from b1 ... promote y --into b1           more candidate ideas inside that branch
+  -> ar_tree open b1, /ar_compact, /ar_review, ar_tree graduate b1   best version -> main
 ```
 
 ## New skills
 
-### `ar_tree`: explorations → directions → main
+### `ar_tree`: worktrees → branches `b<i>/<name>` → main
 ```bash
 T=.agents/skills/ar_tree/scripts/ar_tree.py
-python $T new <slug> --question "..." [--from main|<direction>] [--agent claude|codex] [--env <conda-env>]
+python $T new <slug> --question "..." [--from main|b2] [--agent claude|codex] [--env <conda-env>]
 python $T close <slug> dead|parked [--yes]               # failed: summary only
-python $T promote <slug> --new|--into <direction> [--yes] # works: into dir/<direction> (needs ar_compact)
-python $T open <direction>                               # worktree on the direction (compaction, review)
-python $T graduate <direction> [--yes]                   # best version -> main (needs ar_compact)
-python $T drop <direction> [--yes]                       # abandoned direction: summary only
-python $T list | bury <slug> --question "..." --paths old_dir/ [--yes]
+python $T promote <slug> --into b2 | --new <name> [--yes] # works: joins a branch / opens b<i>/<name> (needs compact + review)
+python $T open b2                                         # worktree on the branch (compaction, review)
+python $T graduate b2 [--yes]                             # best version -> main (needs compact + review)
+python $T drop b2 [--yes]                                 # abandoned branch: summary only
+python $T tracker | list | bury <slug> --question "..." --paths old_dir/ [--yes]
 ```
-- Worktrees: `../<project>.ideas/<slug>` (branch `idea/<slug>`), `../<project>.dirs/<direction>`; Herdr tab `<project>:<slug>`.
-- Every exit needs a filled summary in main: `__board__/ideas/<slug>.md` or `__board__/directions/<name>.md`. Code stays in tags `archive/<slug>` / `archive/dir-<name>`; raw results move to `~/ar_archive/` (or into main on graduation).
+- Worktrees: `../<project>.ideas/<slug>` (branch `idea/<slug>`), `../<project>.branches/b<i>-<name>`; Herdr tab `<project>:<slug>`.
+- Every exit needs a filled summary in main: `__board__/ideas/<slug>.md` or `__board__/branches/b<i>-<name>.md`. Code stays in tags `archive/<slug>` / `archive/b<i>-<name>`; raw results move to `~/ar_archive/` (or into main on graduation).
 - Merges are squash merges that keep bookkeeping out (`IDEA.md`, `STATUS.md`, `goal/`, `COMPACTION.md`) and stop on conflicts without changing anything.
 
 ### `ar_compact`: compress before moving up
 ```bash
-/ar_compact "idea cosine-lr into dir/schedules"     # in the worktree being promoted
+/ar_compact "idea cosine-lr into b1/optimization"     # in the worktree being promoted
 ```
 Agree with the human what survives; freeze tiny-profile outputs; delete everything else, fold survivors into the entity layout, rewrite for clarity and speed with identical behavior; rerun and compare (parity); refresh `structure.md`; commit `__board__/COMPACTION.md` last. `promote`/`graduate` refuse if code changed after it.
 

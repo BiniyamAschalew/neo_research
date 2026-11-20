@@ -87,14 +87,14 @@ class ArTreeTests(unittest.TestCase):
         self.tree("promote", "try-b", "--new", "speedups", "--yes")
         self.assertFalse(work.exists())
         self.assertEqual((self.repo / "model.py").read_text(), "x = 1\n")             # main untouched
-        self.assertEqual(sh("git", "show", "dir/speedups:model.py", cwd=self.repo), "x = 2\n")
-        self.assertIn("__board__/reports/r.md", sh("git", "ls-tree", "-r", "--name-only", "dir/speedups", cwd=self.repo))
-        files = sh("git", "ls-tree", "-r", "--name-only", "dir/speedups", cwd=self.repo)
+        self.assertEqual(sh("git", "show", "b1/speedups:model.py", cwd=self.repo), "x = 2\n")
+        self.assertIn("__board__/reports/r.md", sh("git", "ls-tree", "-r", "--name-only", "b1/speedups", cwd=self.repo))
+        files = sh("git", "ls-tree", "-r", "--name-only", "b1/speedups", cwd=self.repo)
         self.assertNotIn("COMPACTION.md", files)
         self.assertNotIn("IDEA.md", files)
         registry = (self.repo / "__board__/ideas.md").read_text()
-        self.assertIn("promoted:dir/speedups", registry)
-        self.assertIn("| speedups | active |", registry)
+        self.assertIn("promoted:b1/speedups", registry)
+        self.assertIn("| b1-speedups | active |", registry)
         self.assertEqual(sh("git", "status", "--porcelain", cwd=self.repo), "")
         # deepen the direction, then graduate it to main
         deeper = self.tree("new", "try-b2", "--question", "more", "--from", "speedups", "--no-herdr")
@@ -106,12 +106,12 @@ class ArTreeTests(unittest.TestCase):
         self.fill_summary("try-b2")
         self.tree("promote", "try-b2", "--into", "speedups", "--yes")
         opened = self.tree("open", "speedups", "--no-herdr")
-        dwork = self.repo.parent / "proj.dirs/speedups"
+        dwork = self.repo.parent / "proj.branches/b1-speedups"
         self.assertTrue(dwork.exists())
         gated = self.tree("graduate", "speedups", "--yes", check=False)
         self.assertIn("ar_compact", gated.stdout)
         self.compact(dwork)
-        summary = self.repo / "__board__/directions/speedups.md"
+        summary = self.repo / "__board__/branches/b1-speedups.md"
         summary.parent.mkdir(parents=True, exist_ok=True)
         summary.write_text("## Question\nq\n## Approach\na\n## Main results\n| a |\n|---|\n| 1 |\n## Why it failed\nDid not\n## Don't retry unless\nd\n")
         result = self.tree("graduate", "speedups", "--yes", check=False)
@@ -119,8 +119,8 @@ class ArTreeTests(unittest.TestCase):
         self.assertEqual((self.repo / "model.py").read_text(), "x = 3\n")
         self.assertFalse((self.repo / "__board__/COMPACTION.md").exists())
         self.assertFalse(dwork.exists())
-        self.assertIn("archive/dir-speedups", sh("git", "tag", cwd=self.repo))
-        self.assertNotIn("dir/speedups", sh("git", "branch", cwd=self.repo))
+        self.assertIn("archive/b1-speedups", sh("git", "tag", cwd=self.repo))
+        self.assertNotIn("b1/speedups", sh("git", "branch", cwd=self.repo))
         self.assertEqual(sh("git", "status", "--porcelain", cwd=self.repo), "")
 
     def test_review_gate(self):
@@ -139,7 +139,7 @@ class ArTreeTests(unittest.TestCase):
         self.assertIn("ar_compact", out)
         self.compact(work)
         self.assertEqual(self.tree("promote", "try-r", "--new", "r", "--yes", check=False).returncode, 0)
-        self.assertNotIn("REVIEW.md", sh("git", "ls-tree", "-r", "--name-only", "dir/r", cwd=self.repo))
+        self.assertNotIn("REVIEW.md", sh("git", "ls-tree", "-r", "--name-only", "b1/r", cwd=self.repo))
 
     def test_promote_conflict_changes_nothing(self):
         work = self.start("try-d")
@@ -154,7 +154,7 @@ class ArTreeTests(unittest.TestCase):
         result = self.tree("promote", "try-e", "--into", "dirx", "--yes", check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertTrue(work2.exists())
-        self.assertEqual(sh("git", "show", "dir/dirx:model.py", cwd=self.repo), "x = 2\n")
+        self.assertEqual(sh("git", "show", "b1/dirx:model.py", cwd=self.repo), "x = 2\n")
 
     def test_dirty_worktree_blocks_close(self):
         work = self.start("try-c")
@@ -186,6 +186,33 @@ class ArTreeTests(unittest.TestCase):
         self.assertEqual(Path(os.readlink(work / ".claude/settings.local.json")),
                          self.repo / "__board__/claude/settings.local.json")
         self.assertEqual(sh("git", "status", "--porcelain", cwd=work), "")
+
+    def test_branch_numbering_limit_and_tracker(self):
+        names = []
+        for i, name in enumerate(["ensembles", "context-compression"]):
+            work = self.start(f"t{i}")
+            self.compact(work)
+            self.fill_summary(f"t{i}")
+            self.tree("promote", f"t{i}", "--new", name, "--yes")
+        branches = sh("git", "branch", cwd=self.repo)
+        self.assertIn("b1/ensembles", branches)
+        self.assertIn("b2/context-compression", branches)
+        bad = self.tree("promote", "t9", "--new", "a-very-specific-cosine-lr-trick", check=False)
+        self.assertNotEqual(bad.returncode, 0)
+        self.tree("new", "deeper", "--question", "bagging?", "--from", "b1", "--no-herdr")
+        tracker = (self.repo / "__board__/TRACKER.md").read_text()
+        self.assertIn("`b1/ensembles`", tracker)
+        self.assertIn("worktree `idea/deeper`: bagging?", tracker)
+        self.assertIn("2 active, limit", tracker)
+        os.environ["AR_MAX_BRANCHES"] = "2"
+        try:
+            work = self.start("t3")
+            self.compact(work)
+            self.fill_summary("t3")
+            out = self.tree("promote", "t3", "--new", "third", "--yes", check=False).stdout
+            self.assertIn("2 branches already active", out)
+        finally:
+            del os.environ["AR_MAX_BRANCHES"]
 
 
 if __name__ == "__main__":

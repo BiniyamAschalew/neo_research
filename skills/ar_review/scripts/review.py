@@ -37,8 +37,8 @@ VERDICT = re.compile(r"VERDICT:\s*(ACCEPT|REVISE|REJECT)", re.I)
 MAX_ROUNDS = 3
 
 QUESTIONS = {
-    "promote": "Should this exploration become part of the direction branch {target}?",
-    "graduate": "Should this direction become part of {target}, the paper-quality branch?",
+    "promote": "Should this candidate idea become part of the branch {target} (a method section)?",
+    "graduate": "Should this branch (a method section) become part of {target}, the paper-quality branch?",
 }
 
 PROMPT = """You are an independent reviewer ({reviewer}) of research work written by another agent ({author}).
@@ -54,7 +54,7 @@ Judge, citing files, numbers and lines:
 2. Comparison: fair, equally tuned baselines; seeds and datasets sufficient; no test-set selection or leakage.
 3. Compaction: is parity credible (same experiment, seeds, metrics before/after)? Anything kept that the result does not need?
 4. Code: reuse, entity layout, hierarchical configs, no per-version copies, readable enough to debug without an agent.
-5. Fit: does it belong in {target} rather than a separate direction, and is anything missing to make it ready?
+5. Fit: does it belong in {target} rather than another branch, and is anything missing to make it ready?
 
 Answer with numbered findings marked [blocking] or [minor], then a final line exactly:
 VERDICT: ACCEPT | REVISE | REJECT
@@ -99,7 +99,7 @@ def main():
     if done >= args.max_rounds:
         raise SystemExit(f"{done} rounds already; the human decides now (record the decision in {REVIEW}).")
     base = (row or {}).get("base", "").split("@")[0] or "main"
-    target = args.target or ("main" if args.stage == "graduate" else (base if base.startswith("dir/") else "a new direction branch"))
+    target = args.target or ("main" if args.stage == "graduate" else (base if re.match(r"b\d+/", base) else "a new branch"))
     head = git("rev-parse", "--short", "HEAD")
     prompt = PROMPT.format(reviewer=reviewer, author=author, question=QUESTIONS[args.stage].format(target=target),
                            tree=Path.cwd(), branch=git("rev-parse", "--abbrev-ref", "HEAD"), base=base,
