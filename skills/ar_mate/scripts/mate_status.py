@@ -72,15 +72,16 @@ def gpus():
             for l in out.splitlines() if l.strip()]
 
 
-def unread(root):
-    """Inbox lines written by mate_watch since the last call; advances the read cursor."""
-    common = (root / AR_TREE.git("rev-parse", "--git-common-dir", cwd=root)).resolve()
-    inbox = common / "ar_mate_inbox.md"
-    cursor = common / "ar_mate_inbox.pos"
+def unread(root, peek=False):
+    """Inbox lines written by mate_watch since the last call; advances the read cursor unless peek."""
+    inbox = root / "__board__/mate/inbox.md"
+    cursor = root / "__board__/mate/inbox.pos"
     text = inbox.read_text() if inbox.exists() else ""
     start = int(cursor.read_text()) if cursor.exists() else 0
     start = start if start <= len(text) else 0
-    cursor.write_text(str(len(text)))
+    if not peek:
+        cursor.parent.mkdir(parents=True, exist_ok=True)
+        cursor.write_text(str(len(text)))
     return [line for line in text[start:].splitlines() if line.strip()]
 
 
@@ -88,10 +89,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--inbox", action="store_true", help="Print new watcher events only")
+    parser.add_argument("--peek", action="store_true", help="With --inbox: show without marking them read")
     args = parser.parse_args()
     root = AR_TREE.main_root()
     if args.inbox:
-        lines = unread(root)
+        lines = unread(root, peek=args.peek)
         print("\n".join(lines) if lines else "no new events")
         return
     ideas = [idea_status(r) for r in AR_TREE.read_rows(root) if r["status"] in {"active", "parked"}]

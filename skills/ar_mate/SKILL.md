@@ -17,15 +17,13 @@ You are the single agent the human talks to about this project. Idea agents do t
 
 Before handing off, ask the human for anything the task cannot run without (dataset, metric, GPU budget, baseline) in one short question. Missing details are cheaper to settle here than in a half-built plan.
 
-With Claude as the mate, file edits outside `__board__/` are blocked by a hook; with Codex, the session is read-only and every write is reviewed against `mate_review_policy.md`, which denies code edits. With any agent, the rule is the same.
+With Claude as the mate, file edits outside `__board__/` are blocked by a hook; with Codex, the sandbox can write only in `__board__/` and anything more is reviewed against `mate_review_policy.md`, which denies code edits. With any agent, the rule is the same. Never ask to run a read outside the sandbox: reads always work inside it.
 
 ## Start of a session
 
-Read `__board__/TRACKER.md`: every branch (method section) and the worktrees (candidate ideas) inside it.
+The `ar_mate` launcher already printed the status table and unread events, and started the watcher, before you started. Do nothing until the human writes; then answer their message (read `__board__/TRACKER.md` only when the question is about branches or ideas). If you were started some other way, run `python .agents/skills/ar_mate/scripts/mate_watch.py --ensure` once.
 
-Make sure the Slack watcher runs (one per project, already done when you were started by the `ar_mate` launcher):
-`python .agents/skills/ar_mate/scripts/mate_watch.py --ensure` (starts it in the background unless it is running).
-Without using tokens it appends to your inbox when a plan is ready, a report lands, an `ar_goal` loop ends, or an idea agent is blocked or finishes its turn. It never posts to Slack. Slack gets only completed work: each task's final report and each completed `ar_goal` loop, capped per project (no duplicates, at most `AR_SLACK_MAX_PER_HOUR`, default 3).
+The watcher appends to your inbox without using tokens when a plan is ready, a report lands, an `ar_goal` loop ends, or an idea agent is blocked or finishes its turn. It never posts to Slack. Slack gets only completed work: each task's final report and each completed `ar_goal` loop, capped per project (no duplicates, at most `AR_SLACK_MAX_PER_HOUR`, default 3).
 
 ## Each turn
 

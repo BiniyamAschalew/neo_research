@@ -5,7 +5,7 @@
     python .agents/skills/ar_mate/scripts/mate_watch.py --once     # one check, then exit
     python .agents/skills/ar_mate/scripts/mate_watch.py --ensure   # start in the background unless already running
 
-Every --interval seconds it appends to .git/ar_mate_inbox.md (read by `mate_status.py --inbox`): a new plan,
+Every --interval seconds it appends to __board__/mate/inbox.md (read by `mate_status.py --inbox`): a new plan,
 a new report, a finished ar_goal loop, an idea agent blocked or finished. Costs no tokens. Slack only ever
 gets completed work: a task's final report (ar_dev) and a completed ar_goal loop.
 """
@@ -50,8 +50,8 @@ def message(project, slug, kind, path):
 
 
 def inbox_path(root):
-    """Machine-local event log, kept next to the watcher state in the git common dir (never committed)."""
-    return (root / AR_TREE.git("rev-parse", "--git-common-dir", cwd=root)).resolve() / "ar_mate_inbox.md"
+    """Machine-local event log in __board__/mate/ (git-excluded; the mate's sandbox can write its read cursor there)."""
+    return root / "__board__/mate/inbox.md"
 
 
 def to_inbox(root, slug, title, path=None):

@@ -40,14 +40,15 @@ class AgentTests(unittest.TestCase):
                 (fake / name).write_text(f"#!{sys.executable}\nimport sys, json; print(json.dumps(sys.argv[1:]))\n")
                 (fake / name).chmod(0o755)
             env = {**os.environ, "PATH": f"{fake}:{os.environ['PATH']}"}
-            for agent, permission, first in (("claude", ["--permission-mode", "auto", "--settings"], "/ar_mate status"),
-                                             ("codex", ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"', "-c", "hide_agent_reasoning=true"],
-                                              "$ar_mate status")):
+            for agent, permission in (("claude", ["--permission-mode", "auto", "--settings"]),
+                                      ("codex", ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"',
+                                                 "--cd", str(project.resolve() / "__board__")])):
                 out = subprocess.run([str(NEO / "ar_mate"), agent, "--no-watch", "--", "--model", "x"], cwd=project,
                                      env=env, text=True, capture_output=True, check=True).stdout
                 argv = json.loads(out.strip().splitlines()[-1])
                 self.assertEqual(argv[:len(permission)], permission)
-                self.assertEqual(argv[-3:], ["--model", "x", first])
+                self.assertEqual(argv[-2:], ["--model", "x"])                              # no first prompt: no tokens at start
+                self.assertIn("no new events", out)                                         # status printed by the launcher
                 asked = subprocess.run([str(NEO / "ar_mate"), agent, "--no-watch", "--ask"], cwd=project,
                                        env=env, text=True, capture_output=True, check=True).stdout
                 asked_argv = json.loads(asked.strip().splitlines()[-1])
@@ -103,8 +104,9 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(decide("mnist_mlp.py"), "deny")
         self.assertEqual(decide("/p/models/x.py"), "deny")
         self.assertEqual(decide("__board__/ideas/x.md"), "allow")
-        codex = AGENTS.AGENTS["codex"]["guard"](NEO / "skills/ar_mate/mate_review_policy.md")
-        self.assertIn('sandbox_mode="read-only"', codex)
+        codex = AGENTS.AGENTS["codex"]["guard"](NEO / "skills/ar_mate/mate_review_policy.md", "/p")
+        self.assertEqual(codex[:2], ["--cd", "/p/__board__"])                           # only writable folder
+        self.assertIn('sandbox_mode="workspace-write"', codex)
         self.assertIn("Deny", json.loads(codex[-1].split("=", 1)[1]))
         settings = json.loads(AGENTS.AGENTS["claude"]["guard"](guard)[1])
         self.assertEqual(settings["hooks"]["PreToolUse"][0]["matcher"], "Edit|Write|NotebookEdit|MultiEdit")

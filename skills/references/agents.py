@@ -7,7 +7,8 @@
     rules        extra arguments that make a file part of the session's standing instructions,
                  so they survive long sessions (used by the ar_mate launcher)
     guard        extra arguments that stop the mate from editing files outside __board__/:
-                 Claude: a PreToolUse hook; Codex: read-only sandbox + a mate-specific review policy
+                 Claude: a PreToolUse hook; Codex: a sandbox whose only writable folder is __board__/
+                 (so reads, herdr and status run unreviewed) + a mate-specific review policy for the rest
     mate         default permission flags for the mate session (ar_mate --ask drops them):
                  Claude auto mode (a classifier approves safe actions, asks for risky ones);
                  Codex "Approve for me" (workspace-write sandbox, approvals sent to automatic review)
@@ -24,9 +25,9 @@ AGENTS = {
         "headless": ["claude", "-p", "--permission-mode", "acceptEdits"],
         "review": ["claude", "-p", "--permission-mode", "plan"],
         "prefix": "/",
-        "rules": lambda path: ["--append-system-prompt-file", str(path)],
+        "rules": lambda path, preamble="": ["--append-system-prompt-file", str(path)],
         "mate": ["--permission-mode", "auto"],
-        "guard": lambda script: ["--settings", json.dumps({"hooks": {"PreToolUse": [{
+        "guard": lambda script, root=None: ["--settings", json.dumps({"hooks": {"PreToolUse": [{
             "matcher": "Edit|Write|NotebookEdit|MultiEdit",
             "hooks": [{"type": "command", "command": f"python3 {script}"}]}]}})],
     },
@@ -35,10 +36,12 @@ AGENTS = {
         "headless": ["codex", "exec", "-s", "workspace-write"],
         "review": ["codex", "exec", "-s", "read-only"],
         "prefix": "$",
-        "rules": lambda path: ["-c", "developer_instructions=" + json.dumps(Path(path).read_text())],
+        "rules": lambda path, preamble="": ["-c", "developer_instructions=" + json.dumps(preamble + Path(path).read_text())],
         "mate": ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"'],
-        "guard": lambda policy: ["-c", "hide_agent_reasoning=true", "-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="on-request"',
-                                 "-c", "auto_review.policy=" + json.dumps(Path(policy).read_text())],
+        "guard": lambda policy, root: ["--cd", str(Path(root) / "__board__"), "-c", "hide_agent_reasoning=true",
+                                       "-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true",
+                                       "-c", 'approval_policy="on-request"',
+                                       "-c", "auto_review.policy=" + json.dumps(Path(policy).read_text())],
     },
 }
 DEFAULT = os.environ.get("AR_AGENT", "claude")

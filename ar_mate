@@ -9,8 +9,9 @@ with the ar_mate rules in its standing instructions, so it stays the mate throug
 
 Claude gets the rules via --append-system-prompt-file, Codex via developer_instructions.
 Approvals: Claude starts in auto mode, Codex in "Approve for me"; --ask keeps normal prompts.
-The mate cannot write code: Claude via a PreToolUse hook, Codex via a read-only sandbox whose
-escalations go to a reviewer with the mate policy (skills/ar_mate/mate_review_policy.md).
+The mate cannot write code: Claude via a PreToolUse hook, Codex via a sandbox whose only writable
+folder is __board__/; anything else goes to a reviewer with the mate policy (skills/ar_mate/mate_review_policy.md).
+The status table is printed before the agent starts (no tokens); the agent's first turn is your first message.
 Other installed agent CLIs start with the rules in their first prompt only.
 """
 
@@ -25,6 +26,7 @@ import sys
 NEO = Path(__file__).resolve().parent
 SKILL = NEO / "skills/ar_mate/SKILL.md"
 WATCH = NEO / "skills/ar_mate/scripts/mate_watch.py"
+STATUS = NEO / "skills/ar_mate/scripts/mate_status.py"
 GUARD = {"claude": NEO / "skills/ar_mate/scripts/mate_guard.py", "codex": NEO / "skills/ar_mate/mate_review_policy.md"}
 _notify = importlib.util.spec_from_file_location("slack_notify", NEO / "skills/ar_notify/scripts/slack_notify.py")
 PROJECT_ENV = importlib.util.module_from_spec(_notify)
@@ -60,22 +62,29 @@ def main():
     init_spec = importlib.util.spec_from_loader("ar_init", loader)
     init = importlib.util.module_from_spec(init_spec)
     loader.exec_module(init)
-    refreshed = [line for line in init.link_assets(root, log=init.link_agents(root)) if not line.startswith(("ok", "keep"))]
+    log = init.link_assets(root, log=init.link_agents(root))
+    init.git_exclude(root, False, log)  # e.g. __board__/mate/ after an update
+    refreshed = [line for line in log if not line.startswith(("ok", "keep"))]
     if refreshed:  # new or removed shared skills after a `git pull` of neo_research
         print("Refreshed links:\n  " + "\n  ".join(refreshed))
     if subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"], capture_output=True).returncode:
         print("Note: no commits yet; ideas (ar_tree new) need a first commit of the project's code.")
     if not args.no_watch:
         subprocess.run([sys.executable, str(WATCH), "--ensure"], cwd=root)
-    first = f"{AGENTS.skill('ar_mate', args.agent)} status"
+    subprocess.run([sys.executable, str(STATUS)], cwd=root)  # instant, no tokens
+    subprocess.run([sys.executable, str(STATUS), "--inbox", "--peek"], cwd=root)
     permissions = [] if args.ask else agent["mate"]
-    if agent.get("guard"):  # hard stop on code edits by the mate: Claude hook / Codex read-only sandbox + review policy
-        permissions = [*permissions, *agent["guard"](GUARD[args.agent])]
+    preamble = ""
+    if agent.get("guard"):  # hard stop on code edits by the mate: Claude hook / Codex sandbox writable only in __board__/
+        permissions = [*permissions, *agent["guard"](GUARD[args.agent], root)]
+        preamble = (f"Project root: {root}. Your shell starts in {root}/__board__, the only folder you can write; "
+                    f"run project commands as `cd {root} && ...`. The status table was already shown to the human; "
+                    f"wait for their message.\n\n")
     if agent["rules"]:
-        command = [*agent["interactive"], *permissions, *agent["rules"](SKILL), *extra, first]
+        command = [*agent["interactive"], *permissions, *agent["rules"](SKILL, preamble), *extra]
     else:
         print(f"{args.agent}: no standing-instructions option known; the mate rules are only in the first prompt.")
-        command = [*agent["interactive"], *permissions, *extra, f"Read {SKILL} and act as the project's first mate. Then: {first}"]
+        command = [*agent["interactive"], *permissions, *extra, f"Read {SKILL} and act as the project's first mate."]
     keys = PROJECT_ENV.load_keys(PROJECT_ENV.env_file(root))
     if keys.get("CONDA_ENV") and keys["CONDA_ENV"] == os.environ.get("CONDA_DEFAULT_ENV"):
         keys.pop("CONDA_ENV")  # already active

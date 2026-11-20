@@ -253,7 +253,7 @@ class AgentCommandTests(unittest.TestCase):
         self.assertEqual(tree.agent_command("claude")[-2:], ["--permission-mode", "auto"])
         codex = tree.agent_command("codex")
         self.assertIn('approvals_reviewer="auto_review"', codex)
-        self.assertNotIn('sandbox_mode="read-only"', codex)        # idea agents write code; only the mate is read-only
+        self.assertNotIn("--cd", codex)        # idea agents write code; only the mate is sandboxed to __board__
 
 
 class TaskPromptTests(unittest.TestCase):

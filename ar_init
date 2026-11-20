@@ -38,7 +38,7 @@ SHARED = {**LINK_DIRS, **LINK_FILES}  # used by ar_tree and the old-tracked-file
 LOCAL_SETTINGS = (".claude/settings.local.json", "__board__/claude/settings.local.json")
 EXCLUDE = [".agents", ".codex", "AGENTS.md", ".claude/commands", ".claude/CLAUDE.md",
            ".claude/settings.local.json", ".claude/*.lock", "__board__/claude/", "__board__/notes/local/",
-           "__board__/project.env"]
+           "__board__/project.env", "__board__/mate/"]
 JUNK = {".DS_Store", "__pycache__"}
 HOST_FILE = Path(os.environ.get("AR_HOST_FILE", Path.home() / ".config/ar/host.md"))
 HOSTS = {"irteam-gpu.md": Path("/home1/irteam/data-vol1/persist_notify.py")}
