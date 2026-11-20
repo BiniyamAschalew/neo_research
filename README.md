@@ -10,7 +10,7 @@ cd neo_research
 ./ar_init ../my-project        # once per project per machine; safe to rerun
 ```
 
-Then fill in two files in `my-project/__board__/`:
+Then fill in two files in `my-project/__board__/`: 
 
 | File | Committed | Contents |
 |---|---|---|
