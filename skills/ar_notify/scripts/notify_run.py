@@ -13,6 +13,7 @@ import argparse
 from collections import deque
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shlex
 import socket
@@ -71,7 +72,8 @@ def main():
     tail = deque(maxlen=args.tail)
     code = 1
     try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        env = {**os.environ, **SLACK.tracking_env(SLACK.load_keys())}  # runs log to this project's W&B workspace
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, env=env)
         for line in process.stdout:
             sys.stdout.write(line)
             tail.append(line.rstrip()[:200])

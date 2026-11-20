@@ -29,4 +29,4 @@ Sends the report title and its top card (everything before `======`), with markd
 
 ## Keys
 
-`secrets/slack.env` in the neo_research checkout (gitignored; copy `secrets/slack.env.example`) with `SLACK_WEBHOOK_URL=<Incoming Webhook URL>`, or the file named by `AR_SLACK_ENV`.
+Per project, in the main checkout's `__board__/project.env` (created by `ar_init`, never committed, shared by idea worktrees): `SLACK_WEBHOOK_URL`, `TRACKING_URL` (W&B/CoreWeave dashboard, appended to every message), `WANDB_ENTITY`, `WANDB_PROJECT` (passed to runs launched through `notify_run.py` and `ar_goal`). Never print the webhook or copy it elsewhere.

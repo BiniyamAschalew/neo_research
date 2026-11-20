@@ -43,7 +43,7 @@ Use the AutoResearch skill names:
 
 Claude uses matching slash commands instead: `/ar_plan`, `/ar_dev`, `/ar_note`, `/ar_tree`, `/ar_mate`, `/ar_goal` and `/ar_notify`.
 
-Launch experiment runs through `python .agents/skills/ar_notify/scripts/notify_run.py -- <command>` so every completion posts to Slack (webhook in `secrets/slack.env` of the neo_research checkout; skipped when absent).
+Launch experiment runs through `python .agents/skills/ar_notify/scripts/notify_run.py -- <command>` so every completion posts to this project's Slack channel and its runs log to this project's W&B workspace (settings in `__board__/project.env` of the main checkout; never print or commit that file).
 
 ## Python Environment
 

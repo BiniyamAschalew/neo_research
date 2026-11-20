@@ -8,7 +8,7 @@ Claude: `/ar_<name>`. Codex: `$ar_<name>`. Scripts run from the project root; `.
 cd neo_research && ./ar_init ../my-project      # also upgrades an older setup; --dry-run to preview, --untrack for old committed links
 ```
 
-Links the shared agent files, creates `__board__/` and `__board__/PROJECT.md` (fill in env, data, conventions). Optional: paste a Slack Incoming Webhook URL into `neo_research/secrets/slack.env` (`SLACK_WEBHOOK_URL=...`; see README).
+Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conventions) and `__board__/project.env` (never committed: this project's `SLACK_WEBHOOK_URL`, `TRACKING_URL`, `WANDB_ENTITY`, `WANDB_PROJECT`).
 
 ## Typical flow
 
@@ -57,7 +57,7 @@ Inside an idea worktree only. Each iteration: fresh agent → one change in `all
 python .agents/skills/ar_notify/scripts/notify_run.py --name "v3 full" -- python run.py   # always notifies at the end
 python .agents/skills/ar_notify/scripts/slack_notify.py --report __board__/reports/v3/v3.md
 ```
-`notify_run.py` posts status, exit code, duration and the new report card (or the output tail) when the run ends, and returns the run's exit code. Tables are sent as text tables. Without a webhook it prints `skipped`.
+`notify_run.py` posts status, exit code, duration and the new report card (or the output tail) to this project's channel when the run ends, passes `WANDB_*` from `project.env` to the run, and returns the run's exit code. Every message ends with `TRACKING_URL`. Without a webhook it prints `skipped`.
 
 ## Existing skills (changed)
 

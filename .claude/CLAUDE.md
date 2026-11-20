@@ -74,4 +74,4 @@ pip install <package>
 - Preserve existing project code style and conventions.
 - When a requirement is ambiguous during `/ar_dev`, make a reasonable decision, proceed, and document the decision in the report.
 
-Launch experiment runs through `python .agents/skills/ar_notify/scripts/notify_run.py -- <command>` so every completion posts to Slack.
+Launch experiment runs through `python .agents/skills/ar_notify/scripts/notify_run.py -- <command>` so every completion posts to this project's Slack channel and its runs log to this project's W&B workspace (settings in `__board__/project.env` of the main checkout; never print or commit that file).

@@ -38,8 +38,22 @@ class SlackNotifyTests(unittest.TestCase):
     def test_key_file_parsing(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "slack.env"
-            path.write_text("# c\nSLACK_WEBHOOK_URL='https://hooks.slack.com/x'\n")
-            self.assertEqual(SLACK.load_keys(path)["SLACK_WEBHOOK_URL"], "https://hooks.slack.com/x")
+            path.write_text("# c\nSLACK_WEBHOOK_URL='https://hooks.slack.com/x'\nTRACKING_URL=https://wandb.ai/me/p\nWANDB_PROJECT=p\n")
+            keys = SLACK.load_keys(path)
+            self.assertEqual(keys["SLACK_WEBHOOK_URL"], "https://hooks.slack.com/x")
+            self.assertEqual(SLACK.tracking_env(keys), {"WANDB_PROJECT": "p"})
+            self.assertIn("Tracking: https://wandb.ai/me/p", SLACK.notify("t", "x", keys=keys, dry_run=True)["message"])
+
+    def test_worktree_uses_main_checkout_settings(self):
+        with tempfile.TemporaryDirectory() as temp:
+            os.environ.pop("AR_SLACK_ENV", None)
+            repo = Path(temp) / "proj"
+            repo.mkdir()
+            run = lambda *a, cwd=repo: subprocess.run(a, cwd=cwd, check=True, capture_output=True)
+            run("git", "init", "-q", "-b", "main")
+            run("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "i")
+            run("git", "worktree", "add", "-q", str(Path(temp) / "idea"), "-b", "idea/x")
+            self.assertEqual(SLACK.env_file(Path(temp) / "idea"), repo / "__board__/project.env")
 
     def test_run_wrapper_notifies_and_keeps_exit_code(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Send a concise text summary to Slack through an Incoming Webhook. Never fails a run.
 
-The webhook URL lives in <neo_research>/secrets/slack.env (gitignored) or the file
-named by AR_SLACK_ENV. Markdown tables are sent as aligned monospace text tables.
+Settings are per project: <main checkout>/__board__/project.env (never committed), found
+from the current directory, so idea worktrees use their project's webhook. AR_SLACK_ENV
+overrides the file. Markdown tables are sent as aligned monospace text tables.
 
     python slack_notify.py --report __board__/reports/v3.x/v3.x.md
     python slack_notify.py --title "E12 done" --text "AUC +0.01"
@@ -13,26 +14,43 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 import urllib.request
 
-ROOT = Path(__file__).resolve().parents[3]
-KEY_FILE = Path(os.environ.get("AR_SLACK_ENV", ROOT / "secrets/slack.env"))
+PROJECT_ENV = "__board__/project.env"
 MAX_TEXT = 3500
 LEDGER = Path(os.environ.get("AR_NOTIFY_LEDGER", Path.home() / ".cache/ar/notified.tsv"))
 IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)\s*")
 
 
-def load_keys(path=KEY_FILE):
-    keys = {}
-    if Path(path).exists():
-        for line in Path(path).read_text().splitlines():
+def env_file(cwd=None):
+    """The project's settings file: <main checkout>/__board__/project.env (or AR_SLACK_ENV)."""
+    if os.environ.get("AR_SLACK_ENV"):
+        return Path(os.environ["AR_SLACK_ENV"])
+    listing = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=cwd, text=True, capture_output=True)
+    root = Path(listing.stdout.splitlines()[0].split(" ", 1)[1]) if listing.returncode == 0 and listing.stdout else Path(cwd or ".").resolve()
+    return root / PROJECT_ENV
+
+
+def load_keys(path=None):
+    """SLACK_WEBHOOK_URL, TRACKING_URL, WANDB_ENTITY, WANDB_PROJECT ... for this project."""
+    path = Path(path) if path else env_file()
+    keys = {"_file": str(path)}
+    if path.exists():
+        for line in path.read_text().splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 name, value = line.split("=", 1)
                 keys[name.strip()] = value.strip().strip('"').strip("'")
-    keys["SLACK_WEBHOOK_URL"] = os.environ.get("SLACK_WEBHOOK_URL") or keys.get("SLACK_WEBHOOK_URL", "")
+    keys.setdefault("SLACK_WEBHOOK_URL", "")
+    keys.setdefault("TRACKING_URL", "")
     return keys
+
+
+def tracking_env(keys):
+    """W&B variables to pass to experiment processes, so runs log to this project's workspace."""
+    return {k: v for k, v in keys.items() if k.startswith("WANDB_") and v}
 
 
 def text_table(lines):
@@ -96,12 +114,14 @@ def mark_sent(path):
 def notify(title, text, keys=None, dry_run=False):
     keys = keys or load_keys()
     message = f"*{title}*\n{text}".strip()
+    if keys.get("TRACKING_URL"):
+        message += f"\nTracking: {keys['TRACKING_URL']}"
     if len(message) > MAX_TEXT:
         message = message[:MAX_TEXT - 4] + "\n…"
     if dry_run:
         return {"status": "dry_run", "message": message}
     if not keys["SLACK_WEBHOOK_URL"]:
-        return {"status": "skipped", "reason": f"no SLACK_WEBHOOK_URL in {KEY_FILE}"}
+        return {"status": "skipped", "reason": f"no SLACK_WEBHOOK_URL in {keys.get('_file', PROJECT_ENV)}"}
     try:
         request = urllib.request.Request(keys["SLACK_WEBHOOK_URL"], json.dumps({"text": message}).encode(),
                                          {"Content-Type": "application/json"})

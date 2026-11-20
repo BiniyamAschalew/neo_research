@@ -55,6 +55,16 @@ def git(*args, check=True):
     return result.stdout.strip()
 
 
+def tracking_env():
+    """This project's WANDB_* settings from __board__/project.env, for eval runs."""
+    if not NOTIFY.exists():
+        return {}
+    spec = importlib.util.spec_from_file_location("slack_notify", NOTIFY)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.tracking_env(module.load_keys())
+
+
 def shell(command, env=None, timeout_min=60):
     try:
         result = subprocess.run(command, shell=True, text=True, capture_output=True, env={**os.environ, **(env or {})},
@@ -74,7 +84,7 @@ def evaluate(cfg, split, metric, log_name):
     metrics_file = Path(cfg["metrics_file"])
     metrics_file.unlink(missing_ok=True)
     command = f"{cfg['gpu_wrapper']} {cfg['eval_cmd']}".strip()
-    code, output = shell(command, {"AR_GOAL_SPLIT": split}, cfg["eval_timeout_min"])
+    code, output = shell(command, {**tracking_env(), "AR_GOAL_SPLIT": split}, cfg["eval_timeout_min"])
     (STATE / "logs").mkdir(parents=True, exist_ok=True)
     (STATE / "logs" / f"{log_name}.log").write_text(output)
     if code or not metrics_file.exists():

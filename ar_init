@@ -12,7 +12,8 @@ Shared, non-project parts are (re)linked to this checkout; project-specific part
     .claude/commands           -> <neo>/...   shared slash commands
     .claude/                      real folder (per project)
     .claude/settings.local.json -> ../__board__/claude/settings.local.json   this project's own state
-    __board__/                    never touched, except creating PROJECT.md and claude/
+    __board__/project.env         this project's Slack webhook and W&B/CoreWeave link (never committed)
+    __board__/                    never touched, except creating PROJECT.md, project.env and claude/
 
 On an existing setup, anything that came from neo_research (old links, copies of shared
 skills/commands, old versions of AGENTS.md) is replaced by a link. Anything project-specific
@@ -35,10 +36,24 @@ LINK_FILES = {"AGENTS.md": "AGENTS.md", ".claude/CLAUDE.md": ".claude/CLAUDE.md"
 SHARED = {**LINK_DIRS, **LINK_FILES}  # used by ar_tree and the old-tracked-files check
 LOCAL_SETTINGS = (".claude/settings.local.json", "__board__/claude/settings.local.json")
 EXCLUDE = [".agents", ".codex", "AGENTS.md", ".claude/commands", ".claude/CLAUDE.md",
-           ".claude/settings.local.json", ".claude/*.lock", "__board__/claude/", "__board__/notes/local/"]
+           ".claude/settings.local.json", ".claude/*.lock", "__board__/claude/", "__board__/notes/local/",
+           "__board__/project.env"]
 JUNK = {".DS_Store", "__pycache__"}
 HOST_FILE = Path(os.environ.get("AR_HOST_FILE", Path.home() / ".config/ar/host.md"))
 HOSTS = {"irteam-gpu.md": Path("/home1/irteam/data-vol1/persist_notify.py")}
+PROJECT_ENV_TEMPLATE = """# {name}: per-project settings. Never committed (ignored via .git/info/exclude);
+# shared by all idea worktrees of this project. One KEY=value per line.
+
+# Slack Incoming Webhook for this project's channel (run ends, plans ready, reports).
+SLACK_WEBHOOK_URL=
+
+# Experiment tracking dashboard (W&B / CoreWeave), linked in every Slack message.
+TRACKING_URL=
+
+# Passed to every run launched through notify_run.py / ar_goal, so wandb logs here.
+WANDB_ENTITY=
+WANDB_PROJECT=
+"""
 PROJECT_TEMPLATE = """# Project: {name}
 
 Project-specific facts every agent reads at startup (shared rules live in neo_research).
@@ -157,6 +172,14 @@ class Setup:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(PROJECT_TEMPLATE.format(name=self.project.name))
 
+    def project_env(self):
+        path = self.project / "__board__/project.env"
+        if not path.exists():
+            self.note("create", path, "(Slack webhook + tracking link; never committed)")
+            if not self.dry_run:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(PROJECT_ENV_TEMPLATE.format(name=self.project.name))
+
     def settings(self):
         link, store = (self.project / p for p in LOCAL_SETTINGS)
         store = Path(self.settings_target) if self.settings_target else store
@@ -250,6 +273,7 @@ def init(project, dry_run=False, untrack=False):
     if not (project / "__board__").exists():
         setup.log.append("create   __board__/")
     setup.ensure_project_md()
+    setup.project_env()
     setup.agents()
     git_exclude(project, dry_run, setup.log, untrack)
     install_host(dry_run, setup.log)

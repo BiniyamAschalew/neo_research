@@ -119,7 +119,7 @@ def main():
     if not args.once:
         pid_path.write_text(str(os.getpid()))
     state = json.loads(state_path.read_text()) if state_path.exists() else {"files": {}, "agents": {}, "started": False}
-    print(f"watching {root.name} ideas every {args.interval}s; Slack keys: {SLACK.KEY_FILE}", flush=True)
+    print(f"watching {root.name} ideas every {args.interval}s; Slack settings: {SLACK.env_file(root)}", flush=True)
     while True:
         check(root, state)
         state_path.write_text(json.dumps(state))

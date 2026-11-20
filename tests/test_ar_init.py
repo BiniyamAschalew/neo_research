@@ -40,7 +40,10 @@ class ArInitTests(unittest.TestCase):
         self.assertEqual(os.path.realpath(self.project / ".claude/settings.local.json"),
                          os.path.realpath(self.project / "__board__/claude/settings.local.json"))
         self.assertTrue((self.project / ".agents/skills/ar_tree/SKILL.md").exists())
+        self.assertIn("SLACK_WEBHOOK_URL=", (self.project / "__board__/project.env").read_text())
         self.assertEqual(status(self.project).strip(), "?? __board__/")
+        tracked = subprocess.run(["git", "add", "-n", "__board__"], cwd=self.project, text=True, capture_output=True).stdout
+        self.assertNotIn("project.env", tracked)
         before = (self.project / "__board__/PROJECT.md").read_text()
         AR_INIT.init(self.project)  # idempotent
         self.assertEqual((self.project / "__board__/PROJECT.md").read_text(), before)
