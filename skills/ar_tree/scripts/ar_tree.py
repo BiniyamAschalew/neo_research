@@ -161,6 +161,9 @@ def cmd_new(args):
         raise SystemExit(f"Idea '{args.slug}' already exists.")
     tree = root.parent / f"{root.name}.ideas" / args.slug
     branch = f"idea/{args.slug}"
+    args.base = args.base or git("symbolic-ref", "--short", "HEAD", cwd=root)  # the main checkout's branch
+    if subprocess.run(["git", "rev-parse", "--verify", "-q", args.base], cwd=root, capture_output=True).returncode:
+        raise SystemExit(f"'{args.base}' has no commits yet; commit the project's code once (keep data/results ignored), then retry.")
     base_sha = git("rev-parse", "--short", args.base, cwd=root)
     git("worktree", "add", str(tree), "-b", branch, args.base, cwd=root)
     brief = tree / "__board__/IDEA.md"
@@ -412,7 +415,7 @@ def parser():
     new = sub.add_parser("new")
     new.add_argument("slug")
     new.add_argument("--question", required=True)
-    new.add_argument("--base", default="main")
+    new.add_argument("--base", help="Branch to start from (default: the main checkout's current branch)")
     new.add_argument("--agent", default=AGENTS.DEFAULT, help="Agent started in the idea's Herdr tab: claude, codex, ... (default $AR_AGENT or claude)")
     new.add_argument("--env", help="Conda env to activate in the tab (default: current CONDA_DEFAULT_ENV)")
     new.add_argument("--no-herdr", action="store_true")

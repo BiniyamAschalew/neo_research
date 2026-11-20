@@ -36,13 +36,16 @@ def main():
     project = Path(args.project).expanduser().resolve()
     listing = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=project, text=True, capture_output=True)
     if listing.returncode:
-        raise SystemExit(f"{project} is not a git repository; run ar_init on it first.")
+        raise SystemExit(f"{project} is not a git repository. Run `ar_init {project}` (it initializes git), "
+                         "make a first commit, then start the mate.")
     root = Path(listing.stdout.splitlines()[0].split(" ", 1)[1])
     if root != project:
         print(f"Using the main checkout {root} (the mate never runs inside an idea worktree).")
     if not (root / ".agents/skills/ar_mate").exists():
         raise SystemExit(f"{root} is not set up; run: ar_init {root}")
     os.chdir(root)
+    if subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"], capture_output=True).returncode:
+        print("Note: no commits yet; ideas (ar_tree new) need a first commit of the project's code.")
     if not args.no_watch:
         subprocess.run([sys.executable, str(WATCH), "--ensure"], cwd=root)
     extra = args.agent_args[1:] if args.agent_args[:1] == ["--"] else args.agent_args

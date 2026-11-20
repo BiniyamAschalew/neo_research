@@ -114,6 +114,18 @@ class ArInitTests(unittest.TestCase):
         AR_INIT.init(self.project, dry_run=True)
         self.assertEqual(list(self.project.iterdir()), [self.project / ".git"])
 
+    def test_non_git_folder_gets_git(self):
+        plain = Path(self.temp.name) / "plain"
+        plain.mkdir()
+        (plain / "train.py").write_text("x")
+        log = "\n".join(AR_INIT.init(plain))
+        self.assertIn("git      init", log)
+        self.assertIn("no commits yet", log)
+        self.assertTrue((plain / ".git").is_dir())
+        branch = subprocess.run(["git", "symbolic-ref", "--short", "HEAD"], cwd=plain, text=True, capture_output=True).stdout.strip()
+        self.assertEqual(branch, "main")
+        self.assertNotIn(".agents", status(plain))  # ignore rules written once git exists
+
 
 if __name__ == "__main__":
     unittest.main()
