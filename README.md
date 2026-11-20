@@ -15,7 +15,7 @@ Then fill in two files in `my-project/__board__/`:
 | File | Committed | Contents |
 |---|---|---|
 | `PROJECT.md` | yes | conda env, data paths, conventions |
-| `project.env` | **never** | `SLACK_WEBHOOK_URL` (this project's channel), `WANDB_URL` (W&B project page; entity and project are read from it) |
+| `project.env` | **never** | `CONDA_ENV` (code environment for every agent, the mate and `ar_goal`; or `ENV_ACTIVATE=<command>`), `SLACK_WEBHOOK_URL` (this project's channel), `WANDB_URL` (W&B project page; entity and project are read from it) |
 
 Requirements: git, Python 3.8+, and an agent CLI: Claude Code or Codex (others work with fewer guarantees; agents are defined in `skills/references/agents.py`). Optional: [Herdr](https://herdr.dev), a Slack [Incoming Webhook](https://api.slack.com/messaging/webhooks) per project, W&B, PyYAML (for `ar_goal`).
 
@@ -30,7 +30,7 @@ You:           edit the card if needed, tell the mate "approved"
 Mate:          idea agent runs ar_dev through notify_run.py (logs to this project's W&B)
 Slack:         run finished + duration, then "experiment done" + Planned vs Actual card + tracking link
 You -> mate:   failed: "close it as dead" -> only its summary returns to main
-               works:  "compact and promote it as a new direction" -> ar_compact, then branch dir/schedules
+               works:  "compact, review and promote it as a new direction" -> ar_compact, ar_review, branch dir/schedules
 Later:         more explorations --from schedules; when the direction is mature: open, ar_compact, graduate -> main
 ```
 
@@ -43,7 +43,7 @@ main            only the best, compacted, paper-worthy code + summaries of every
  └─ worktree      new explorations from main
 ```
 
-Failed explorations leave only a summary (`__board__/ideas/`), never code. Each move up (worktree → direction → main) is gated by `ar_compact`: keep only what the result needs, rewrite it shorter and faster with identical results, prove parity. All tiers follow [code style](skills/references/code-style.md): reuse first, one home per entity (`models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries), hierarchical YAML configs, one `run.py` with no argparse, and a `structure.md` of every signature.
+Failed explorations leave only a summary (`__board__/ideas/`), never code. Each move up (worktree → direction → main) is gated twice: `ar_compact` (keep only what the result needs, rewrite it shorter and faster with identical results, prove parity), then `ar_review` (a reviewer from the other agent family critiques evidence, baselines, parity, code and fit; the author answers; up to three rounds until ACCEPT, otherwise the human decides). All tiers follow [code style](skills/references/code-style.md): reuse first, one home per entity (`models/`, `methods/`, `data/`, `utils/<topic>/` with `_build.py` registries), hierarchical YAML configs, one `run.py` with no argparse, and a `structure.md` of every signature.
 
 `ar_mate [agent]` puts the mate rules in the agent's standing instructions (Claude: system prompt; Codex: developer instructions), so it stays the mate through long sessions. Mate and idea agents can differ, e.g. a Claude mate driving Codex ideas. Approvals default to Claude auto mode / Codex "Approve for me" (risky actions still ask); `ar_mate --ask` keeps normal prompts. It asks before anything irreversible (full runs, closes, merges, pushes) and never edits code itself.
 
@@ -56,6 +56,7 @@ Failed explorations leave only a summary (`__board__/ideas/`), never code. Each 
 | `ar_dev` | implement and run it; report opens with Planned vs Actual |
 | `ar_tree` | explorations (worktrees) → directions (`dir/*` branches) → main; failures return only a summary |
 | `ar_compact` | before each promotion: same results, less and cleaner code, with parity proof |
+| `ar_review` | before each promotion: Claude ↔ Codex discussion until ACCEPT or a human decision |
 | `ar_mate` | first mate coordinating all ideas of a project |
 | `ar_goal` | overnight one-change-at-a-time tuning loop with a sealed test |
 | `ar_notify` | Slack text message when a run ends |

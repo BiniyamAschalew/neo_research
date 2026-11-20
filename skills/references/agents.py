@@ -2,6 +2,7 @@
 
     interactive  command for a tab you talk to
     headless     one-shot command that edits files and exits (ar_goal iterations)
+    review       one-shot, read-only command for an independent reviewer (ar_review)
     prefix       how skills are invoked in a prompt: /ar_plan (Claude) or $ar_plan (Codex)
     rules        extra arguments that make a file part of the session's standing instructions,
                  so they survive long sessions (used by the ar_mate launcher)
@@ -19,6 +20,7 @@ AGENTS = {
     "claude": {
         "interactive": ["claude"],
         "headless": ["claude", "-p", "--permission-mode", "acceptEdits"],
+        "review": ["claude", "-p", "--permission-mode", "plan"],
         "prefix": "/",
         "rules": lambda path: ["--append-system-prompt-file", str(path)],
         "mate": ["--permission-mode", "auto"],
@@ -26,6 +28,7 @@ AGENTS = {
     "codex": {
         "interactive": ["codex"],
         "headless": ["codex", "exec", "-s", "workspace-write"],
+        "review": ["codex", "exec", "-s", "read-only"],
         "prefix": "$",
         "rules": lambda path: ["-c", "developer_instructions=" + json.dumps(Path(path).read_text())],
         "mate": ["-c", 'approval_policy="on-request"', "-c", 'approvals_reviewer="auto_review"',
@@ -42,7 +45,13 @@ def spec(name=None):
         return AGENTS[name]
     if not shutil.which(name):
         raise SystemExit(f"Unknown agent '{name}': not installed. Known: {', '.join(AGENTS)}")
-    return {"interactive": [name], "headless": None, "prefix": "/", "rules": None, "mate": []}
+    return {"interactive": [name], "headless": None, "review": None, "prefix": "/", "rules": None, "mate": []}
+
+
+def other(name):
+    """The reviewer for an author: a different agent family when one is available."""
+    candidates = [a for a in AGENTS if a != name and shutil.which(AGENTS[a]["review"][0])]
+    return candidates[0] if candidates else None
 
 
 def skill(name, agent=None):

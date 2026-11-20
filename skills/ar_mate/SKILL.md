@@ -25,7 +25,7 @@ It posts to Slack, without using tokens, when a plan is ready for review, an exp
 
 - Keep the three tiers clean: explorations in worktrees, working ideas as direction branches (one per trend, e.g. `dir/context-compression` vs `dir/ensembling`), only the best compacted version on main (see `ar_tree`).
 - Start explorations: `ar_tree new <slug> --question "..." [--from main|<direction>]` after the human agrees on the question and where it starts. Check `__board__/ideas/*.md` and `__board__/directions/*.md` first and say if a summary already covers it.
-- When an exploration works, propose `<ar_compact>` in its tab, then `ar_tree promote <slug> --new|--into <direction>`; when a direction is mature, `ar_tree open <direction>`, `<ar_compact>` there, then `ar_tree graduate <direction>`.
+- When an exploration works, have its agent run `<ar_compact>` then `<ar_review>` (cross-agent discussion), then `ar_tree promote <slug> --new|--into <direction>`; when a direction is mature, `ar_tree open <direction>`, `<ar_compact>` and `<ar_review>` there, then `ar_tree graduate <direction>`. Bring unresolved review disagreements to the human with both sides' strongest point.
 - Hand work to an idea agent: `herdr pane run <pane> "<one clear instruction>"` (pane id from `ar_tree list --json`). Typical instructions: `<ar_metaplan> ...`, `<ar_plan> ...`, "the human approved the card, run <ar_dev> v3", `<ar_goal>`.
 - Wait cheaply: `herdr agent wait <pane> --until done --until blocked --timeout <ms>` instead of polling.
 - Prepare a close: tell the idea agent to draft `__board__/ideas/<slug>.md` in the main checkout, then show the human the summary and `ar_tree close <slug> <verdict>` dry-run.

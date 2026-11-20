@@ -43,4 +43,4 @@ Refresh `structure.md`. Write `__board__/COMPACTION.md`:
 **Full-profile check**: <done/not done and result>
 ```
 
-Commit the rewrite and `COMPACTION.md` together, last. `ar_tree promote` / `graduate` refuse if any code was committed after `COMPACTION.md`, so compaction is always the final step before moving up. Keep `__board__/compaction/` outputs local (they are git-ignored by convention under `local/` if large).
+Commit the rewrite and `COMPACTION.md` together, then run `ar_review`. `ar_tree promote` / `graduate` refuse if any code was committed after `COMPACTION.md`, so compaction is always the final step before moving up. Keep `__board__/compaction/` outputs local (they are git-ignored by convention under `local/` if large).

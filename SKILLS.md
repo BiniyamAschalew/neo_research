@@ -9,7 +9,7 @@ cd neo_research && ./install                     # once per machine: ar_init / a
 ar_init ../my-project                            # also upgrades an older setup; --dry-run to preview, --untrack for old committed links
 ```
 
-Links the shared agent files and creates `__board__/PROJECT.md` (env, data, conventions) and `__board__/project.env` (never committed: this project's `SLACK_WEBHOOK_URL` and `WANDB_URL`).
+Links the shared agent files and creates `__board__/PROJECT.md` (data, conventions) and `__board__/project.env` (never committed: this project's `CONDA_ENV`, `SLACK_WEBHOOK_URL` and `WANDB_URL`).
 
 ## Typical flow
 
@@ -20,9 +20,9 @@ ar_mate [codex], then "start an idea: does X improve Y?"   (tab 0, main checkout
   -> /ar_dev                                      runs via notify_run.py -> Slack on completion
   -> /ar_goal (optional, overnight tuning)
   -> ar_tree close x-idea dead|parked             failed: summary only
-  -> /ar_compact, ar_tree promote x-idea --new <dir>   works: compacted code becomes branch dir/<dir>
+  -> /ar_compact, /ar_review, ar_tree promote x-idea --new <dir>   works: compacted, reviewed code becomes dir/<dir>
   -> ar_tree new y --from <dir> ... promote --into <dir>   go deeper in the direction
-  -> ar_tree open <dir>, /ar_compact, ar_tree graduate <dir>   best version -> main
+  -> ar_tree open <dir>, /ar_compact, /ar_review, ar_tree graduate <dir>   best version -> main
 ```
 
 ## New skills
@@ -47,6 +47,12 @@ python $T list | bury <slug> --question "..." --paths old_dir/ [--yes]
 /ar_compact "idea cosine-lr into dir/schedules"     # in the worktree being promoted
 ```
 Agree with the human what survives; freeze tiny-profile outputs; delete everything else, fold survivors into the entity layout, rewrite for clarity and speed with identical behavior; rerun and compare (parity); refresh `structure.md`; commit `__board__/COMPACTION.md` last. `promote`/`graduate` refuse if code changed after it.
+
+### `ar_review`: cross-agent discussion before moving up
+```bash
+python .agents/skills/ar_review/scripts/review.py promote|graduate [--reviewer codex]
+```
+Runs the other agent family read-only on the worktree and appends a round (findings + `VERDICT`) to `__board__/REVIEW.md`; the author answers each blocking finding, commits, and runs the next round. Up to 3 rounds, then the human decides (`**Human decision**: accept|reject`). `promote`/`graduate` need an ACCEPT from a different family than the author, committed after any code change and `COMPACTION.md` (`--skip-review` is a human override).
 
 ### `ar_mate`: first mate across ideas
 ```bash

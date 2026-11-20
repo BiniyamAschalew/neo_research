@@ -22,6 +22,9 @@ import sys
 NEO = Path(__file__).resolve().parent
 SKILL = NEO / "skills/ar_mate/SKILL.md"
 WATCH = NEO / "skills/ar_mate/scripts/mate_watch.py"
+_notify = importlib.util.spec_from_file_location("slack_notify", NEO / "skills/ar_notify/scripts/slack_notify.py")
+PROJECT_ENV = importlib.util.module_from_spec(_notify)
+_notify.loader.exec_module(PROJECT_ENV)
 _spec = importlib.util.spec_from_file_location("agents", NEO / "skills/references/agents.py")
 AGENTS = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(AGENTS)
@@ -60,6 +63,13 @@ def main():
     else:
         print(f"{args.agent}: no standing-instructions option known; the mate rules are only in the first prompt.")
         command = [*agent["interactive"], *permissions, *extra, f"Read {SKILL} and act as the project's first mate. Then: {first}"]
+    keys = PROJECT_ENV.load_keys(PROJECT_ENV.env_file(root))
+    if keys.get("CONDA_ENV") == os.environ.get("CONDA_DEFAULT_ENV"):
+        keys.pop("CONDA_ENV")  # already active
+    activate = PROJECT_ENV.activation(keys)
+    if activate:  # the mate (and every command it runs) works inside the project's code environment
+        print(f"Environment: {keys.get('CONDA_ENV') or keys.get('ENV_ACTIVATE')}")
+        command = ["bash", "-c", f'{activate} && exec "$@"', "ar_mate", *command]
     os.execvp(command[0], command)
 
 

@@ -67,10 +67,15 @@ class ArTreeTests(unittest.TestCase):
         self.assertEqual((Path(os.environ["AR_ARCHIVE"]) / "proj/try-a/local/preds.npy").read_text(), "raw")
         self.assertIn("| try-a | dead |", (self.repo / "__board__/ideas.md").read_text())
 
-    def compact(self, work):
-        (work / "__board__/COMPACTION.md").write_text("# Compaction\n**Parity**: equal\n")
+    def compact(self, work, verdict="ACCEPT", reviewer="codex"):
+        self.rounds = getattr(self, "rounds", 0) + 1
+        (work / "__board__/COMPACTION.md").write_text(f"# Compaction {self.rounds}\n**Parity**: equal\n")
         sh("git", "add", "__board__/COMPACTION.md", cwd=work)
         sh("git", "commit", "-q", "-m", "compact", cwd=work)
+        (work / "__board__/REVIEW.md").write_text(f"# Review\n\n## Round {self.rounds} | stage: x | reviewer: {reviewer} | author: claude\n\n"
+                                                  f"1. [minor] ok\nVERDICT: {verdict}\n\n**Verdict**: {verdict}\n")
+        sh("git", "add", "__board__/REVIEW.md", cwd=work)
+        sh("git", "commit", "-q", "-m", "review", cwd=work)
 
     def test_promote_requires_compaction_then_builds_direction(self):
         work = self.start("try-b")
@@ -117,6 +122,24 @@ class ArTreeTests(unittest.TestCase):
         self.assertIn("archive/dir-speedups", sh("git", "tag", cwd=self.repo))
         self.assertNotIn("dir/speedups", sh("git", "branch", cwd=self.repo))
         self.assertEqual(sh("git", "status", "--porcelain", cwd=self.repo), "")
+
+    def test_review_gate(self):
+        work = self.start("try-r")
+        self.fill_summary("try-r")
+        self.compact(work, verdict="REVISE")
+        out = self.tree("promote", "try-r", "--new", "r", "--yes", check=False).stdout
+        self.assertIn("did not ACCEPT", out)
+        self.compact(work, reviewer="claude")                      # same family as the author
+        out = self.tree("promote", "try-r", "--new", "r", "--yes", check=False).stdout
+        self.assertIn("author's own agent", out)
+        self.compact(work)
+        (work / "model.py").write_text("x = 5\n")                   # code after the review
+        sh("git", "commit", "-q", "-am", "late change", cwd=work)
+        out = self.tree("promote", "try-r", "--new", "r", "--yes", check=False).stdout
+        self.assertIn("ar_compact", out)
+        self.compact(work)
+        self.assertEqual(self.tree("promote", "try-r", "--new", "r", "--yes", check=False).returncode, 0)
+        self.assertNotIn("REVIEW.md", sh("git", "ls-tree", "-r", "--name-only", "dir/r", cwd=self.repo))
 
     def test_promote_conflict_changes_nothing(self):
         work = self.start("try-d")

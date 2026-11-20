@@ -62,6 +62,17 @@ def parse_wandb_url(url):
     return found
 
 
+def activation(keys, interactive=False):
+    """Shell snippet that activates the project's code environment ('' when none is configured).
+    CONDA_ENV=<name> or ENV_ACTIVATE=<any shell command, e.g. source .venv/bin/activate>."""
+    if keys.get("ENV_ACTIVATE"):
+        return keys["ENV_ACTIVATE"]
+    if keys.get("CONDA_ENV"):
+        hook = "" if interactive else 'eval "$(conda shell.bash hook)" && '
+        return f"{hook}conda activate {keys['CONDA_ENV']}"
+    return ""
+
+
 def tracking_env(keys):
     """W&B variables to pass to experiment processes, so runs log to this project's workspace."""
     return {k: v for k, v in keys.items() if k.startswith("WANDB_") and k != "WANDB_URL" and v}

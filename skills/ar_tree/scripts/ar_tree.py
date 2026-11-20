@@ -10,7 +10,8 @@
     ar_tree.py drop <direction> [--yes]                  # direction abandoned: summary to main, branch archived
     ar_tree.py list [--json] | summary <slug> | bury <slug> --question "..." --paths ...
 
-promote and graduate require __board__/COMPACTION.md (ar_compact) newer than any code change.
+promote and graduate require __board__/COMPACTION.md (ar_compact) and an accepting cross-agent
+__board__/REVIEW.md (ar_review), both newer than any code change.
 Destructive commands are dry runs unless --yes is given.
 """
 
@@ -38,6 +39,9 @@ AGENT_LINKS = {".claude", ".agents", ".codex", "AGENTS.md"}  # ar_init links, no
 SKIP_ARCHIVE = {"__pycache__", ".pytest_cache", ".venv", ".ipynb_checkpoints", ".DS_Store"}
 ARCHIVE = Path(os.environ.get("AR_ARCHIVE", Path.home() / "ar_archive"))
 NEO_INIT = Path(__file__).resolve().parents[3] / "ar_init"
+_SLACK = importlib.util.spec_from_file_location("slack_notify", Path(__file__).resolve().parents[2] / "ar_notify/scripts/slack_notify.py")
+SLACK = importlib.util.module_from_spec(_SLACK)
+_SLACK.loader.exec_module(SLACK)
 _AGENTS = importlib.util.spec_from_file_location("agents", Path(__file__).resolve().parents[2] / "references/agents.py")
 AGENTS = importlib.util.module_from_spec(_AGENTS)
 _AGENTS.loader.exec_module(AGENTS)
@@ -189,11 +193,11 @@ def cmd_new(args):
         if created:
             row["tab"] = created.get("result", {}).get("tab", {}).get("tab_id", "")
             row["pane"] = created.get("result", {}).get("root_pane", {}).get("pane_id", "")
-            env = args.env or os.environ.get("CONDA_DEFAULT_ENV", "")
             prompt = f"Read __board__/IDEA.md and __board__/ideas/ in the main checkout ({root}) before planning."
             launch = shlex.join([*AGENTS.spec(args.agent)["interactive"], prompt])
-            if env:
-                launch = f"conda activate {shlex.quote(env)} && {launch}"
+            activate = f"conda activate {shlex.quote(args.env)}" if args.env else SLACK.activation(SLACK.load_keys(SLACK.env_file(root)), interactive=True)
+            if activate:
+                launch = f"{activate} && {launch}"
             if row["pane"]:
                 herdr("pane", "run", row["pane"], launch)
     rows.append(row)
@@ -274,7 +278,8 @@ def require_on_base(root, base):
 
 
 IDEA_ONLY = ("__board__/IDEA.md", "__board__/STATUS.md", "__board__/goal",  # per-tier bookkeeping:
-             "__board__/COMPACTION.md", "__board__/compaction")             # never merged upward
+             "__board__/COMPACTION.md", "__board__/compaction",             # never merged upward
+             "__board__/REVIEW.md")
 
 
 def idea_only(path):
@@ -348,6 +353,32 @@ def compaction_problem(root, base, branch):
         return "no __board__/COMPACTION.md on this branch: run ar_compact first"
     ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", code, note], cwd=root).returncode == 0
     return None if ancestor else "code changed after the last COMPACTION.md: rerun ar_compact"
+
+
+def review_problem(root, base, branch, author):
+    """None when the last round of __board__/REVIEW.md accepts, comes from another agent family than the
+    author, and was committed after every code change and after COMPACTION.md."""
+    fork = git("merge-base", base, branch, cwd=root)
+    note = git("log", "-1", "--format=%H", f"{fork}..{branch}", "--", "__board__/REVIEW.md", cwd=root)
+    if not note:
+        return "no __board__/REVIEW.md: run ar_review (cross-agent discussion) first"
+    later = git("log", "-1", "--format=%H", f"{fork}..{branch}", "--", ".", ":(exclude)__board__",
+                cwd=root) or None
+    compaction = git("log", "-1", "--format=%H", f"{fork}..{branch}", "--", "__board__/COMPACTION.md", cwd=root) or None
+    for commit in (later, compaction):
+        if commit and subprocess.run(["git", "merge-base", "--is-ancestor", commit, note], cwd=root).returncode:
+            return "code or COMPACTION.md changed after the last review: run another ar_review round"
+    text = git("show", f"{branch}:__board__/REVIEW.md", cwd=root)
+    last = text.split("\n## Round ")[-1]
+    human = re.search(r"\*\*Human decision\*\*:\s*(accept|reject)", last, re.I)
+    if human:
+        return None if human.group(1).lower() == "accept" else "the human rejected it in REVIEW.md"
+    reviewer = re.search(r"reviewer:\s*([\w.-]+)", last)
+    if reviewer and author and reviewer.group(1) == author:
+        return f"the reviewer ({reviewer.group(1)}) is the author's own agent; review with another agent family"
+    if not re.search(r"\*\*Verdict\*\*:\s*ACCEPT", last):
+        return "the last review round did not ACCEPT: answer the findings and run another round (or a human decision)"
+    return None
 
 
 def check_tree(row):
@@ -451,6 +482,8 @@ def cmd_promote(args):
         problems.append(f"{target} does not exist; use --new {name}")
     if not args.skip_compaction and (problem := compaction_problem(root, base, row["branch"])):
         problems.append(problem)
+    if not args.skip_review and (problem := review_problem(root, base, row["branch"], row["agent"])):
+        problems.append(problem)
     summary = ensure_summary(root, row, f"promoted to {target}")
     problems += summary_problems(summary)
     raw = ignored_paths(tree) if has_tree else []
@@ -528,6 +561,8 @@ def cmd_graduate(args):
     main_branch = git("symbolic-ref", "--short", "HEAD", cwd=root)
     problems = []
     if not args.skip_compaction and (problem := compaction_problem(root, main_branch, row["branch"])):
+        problems.append(problem)
+    if not args.skip_review and (problem := review_problem(root, main_branch, row["branch"], row["agent"])):
         problems.append(problem)
     summary = ensure_summary(root, row, f"graduated to {main_branch}")
     problems += summary_problems(summary)
@@ -623,7 +658,7 @@ def parser():
     new.add_argument("--question", required=True)
     new.add_argument("--from", "--base", dest="base", help="main (default: the main checkout's branch) or a direction name")
     new.add_argument("--agent", default=AGENTS.DEFAULT, help="Agent started in the idea's Herdr tab: claude, codex, ... (default $AR_AGENT or claude)")
-    new.add_argument("--env", help="Conda env to activate in the tab (default: current CONDA_DEFAULT_ENV)")
+    new.add_argument("--env", help="Conda env for the tab (default: CONDA_ENV / ENV_ACTIVATE in __board__/project.env)")
     new.add_argument("--no-herdr", action="store_true")
     lst = sub.add_parser("list")
     lst.add_argument("--json", action="store_true")
@@ -640,6 +675,7 @@ def parser():
     promote.add_argument("--into", help="merge into existing direction dir/<name>")
     promote.add_argument("--question", help="one-line thesis for a new direction (default: the idea's question)")
     promote.add_argument("--skip-compaction", action="store_true", help="human override of the compaction gate")
+    promote.add_argument("--skip-review", action="store_true", help="human override of the cross-agent review gate")
     promote.add_argument("--yes", action="store_true")
     opener = sub.add_parser("open", help="worktree on a direction branch")
     opener.add_argument("direction")
@@ -649,6 +685,7 @@ def parser():
     grad.add_argument("direction")
     grad.add_argument("--keep", action="store_true", help="keep the direction branch after merging")
     grad.add_argument("--skip-compaction", action="store_true", help="human override of the compaction gate")
+    grad.add_argument("--skip-review", action="store_true", help="human override of the cross-agent review gate")
     grad.add_argument("--yes", action="store_true")
     drop = sub.add_parser("drop", help="abandon a direction (summary only)")
     drop.add_argument("direction")

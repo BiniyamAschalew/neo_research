@@ -12,7 +12,7 @@ main            refined, paper-worthy code + every summary (__board__/ideas/, __
  └─ worktree idea/<slug>      an exploration branched from main
 ```
 
-Every move up (worktree → direction, direction → main) goes through `ar_compact` first: same results, less and cleaner code. Unrelated trends are separate directions; never mix them in one branch.
+Every move up (worktree → direction, direction → main) goes through `ar_compact` (same results, less and cleaner code) and then `ar_review` (cross-agent discussion until ACCEPT or a human decision). Unrelated trends are separate directions; never mix them in one branch.
 
 The tool `scripts/ar_tree.py` (relative to this skill, following links) does the git and Herdr work; you write summaries and run compaction. Destructive commands are dry runs until `--yes`, which needs the human's approval.
 
@@ -40,8 +40,8 @@ Every exit writes one summary in the main checkout: `__board__/ideas/<slug>.md` 
 ## What each command does on `--yes`
 
 - **close**: tags `archive/<slug>`, moves git-ignored raw results to `~/ar_archive/<project>/<slug>/`, commits the summary and registry to main, removes worktree, tab and (except `parked`) branch.
-- **promote**: requires `__board__/COMPACTION.md` committed after every code change on the idea branch (`--skip-compaction` is a human override). Squash-merges the idea into `dir/<direction>` (created from the idea's base with `--new`), keeping bookkeeping (`IDEA.md`, `STATUS.md`, `goal/`, `COMPACTION.md`, `compaction/`) out; stops on merge conflicts without changing anything. Then summary to main, tag, retire the worktree.
-- **graduate**: same compaction gate on the direction branch (compact it in the `open` worktree), then squash-merges it into main as one commit with code, configs, plans and reports, keeps bookkeeping out, moves raw results into main, tags `archive/dir-<direction>` and deletes the branch (`--keep` to keep it).
+- **promote**: requires `__board__/COMPACTION.md` committed after every code change on the idea branch and an accepting `__board__/REVIEW.md` from another agent family committed after both (`--skip-compaction` / `--skip-review` are human overrides). Squash-merges the idea into `dir/<direction>` (created from the idea's base with `--new`), keeping bookkeeping (`IDEA.md`, `STATUS.md`, `goal/`, `COMPACTION.md`, `compaction/`, `REVIEW.md`) out; stops on merge conflicts without changing anything. Then summary to main, tag, retire the worktree.
+- **graduate**: same compaction and review gates on the direction branch (compact it in the `open` worktree), then squash-merges it into main as one commit with code, configs, plans and reports, keeps bookkeeping out, moves raw results into main, tags `archive/dir-<direction>` and deletes the branch (`--keep` to keep it).
 - **drop**: summary to main, tag `archive/dir-<direction>`, branch and worktree removed.
 
 The main checkout stays on main with no uncommitted tracked changes (registry edits excepted). Pushing tags (`git push origin --tags`) or branches needs explicit human instruction.

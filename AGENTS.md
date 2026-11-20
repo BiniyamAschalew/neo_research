@@ -38,11 +38,12 @@ Use the AutoResearch skill names:
 | `$ar_note <topic>` | `$ar_note optimizer comparison` | Write a technical note under `__board__/notes/` |
 | `$ar_tree new\|close <slug>` | `$ar_tree new head-swap` | One worktree per idea; only a summary returns to main |
 | `$ar_compact [scope]` | `$ar_compact idea x into dir/y` | Same results, less code, before promote/graduate |
+| `$ar_review promote\|graduate` | `$ar_review promote` | Cross-agent discussion before moving up |
 | `$ar_mate [request]` | `$ar_mate status` | First mate coordinating idea worktrees in Herdr |
 | `$ar_goal [goal.yaml]` | `$ar_goal` | Overnight one-change-at-a-time improvement loop |
 | `$ar_notify [report]` | `$ar_notify __board__/reports/v3/v3.md` | Slack text summary of a finished run |
 
-Claude uses matching slash commands instead: `/ar_plan`, `/ar_dev`, `/ar_note`, `/ar_tree`, `/ar_compact`, `/ar_mate`, `/ar_goal` and `/ar_notify`.
+Claude uses matching slash commands instead: `/ar_plan`, `/ar_dev`, `/ar_note`, `/ar_tree`, `/ar_compact`, `/ar_review`, `/ar_mate`, `/ar_goal` and `/ar_notify`.
 
 Launch experiment runs through `python .agents/skills/ar_notify/scripts/notify_run.py -- <command>` so every completion posts to this project's Slack channel and its runs log to this project's W&B workspace (settings in `__board__/project.env` of the main checkout; never print or commit that file).
 

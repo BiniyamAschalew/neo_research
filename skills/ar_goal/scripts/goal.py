@@ -73,9 +73,24 @@ def tracking_env():
     return module.tracking_env(module.load_keys())
 
 
+def activation():
+    """Activate the project's code environment (CONDA_ENV / ENV_ACTIVATE in __board__/project.env) for evals and agents."""
+    if not NOTIFY.exists():
+        return ""
+    spec = importlib.util.spec_from_file_location("slack_notify", NOTIFY)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    keys = module.load_keys()
+    if keys.get("CONDA_ENV") == os.environ.get("CONDA_DEFAULT_ENV"):
+        return ""
+    return module.activation(keys)
+
+
 def shell(command, env=None, timeout_min=60):
+    prefix = activation()
+    command = f"{prefix} && {command}" if prefix else command
     try:
-        result = subprocess.run(command, shell=True, text=True, capture_output=True, env={**os.environ, **(env or {})},
+        result = subprocess.run(command, shell=True, executable="/bin/bash", text=True, capture_output=True, env={**os.environ, **(env or {})},
                                 timeout=timeout_min * 60)
         return result.returncode, (result.stdout + result.stderr)[-3000:]
     except subprocess.TimeoutExpired:

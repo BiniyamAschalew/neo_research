@@ -44,6 +44,10 @@ HOSTS = {"irteam-gpu.md": Path("/home1/irteam/data-vol1/persist_notify.py")}
 PROJECT_ENV_TEMPLATE = """# {name}: per-project settings. Never committed (ignored via .git/info/exclude);
 # shared by all idea worktrees of this project. One KEY=value per line.
 
+# Code environment every agent tab, mate and ar_goal run uses (conda env name).
+# Or ENV_ACTIVATE=<shell command>, e.g. ENV_ACTIVATE=source .venv/bin/activate
+CONDA_ENV=
+
 # Slack Incoming Webhook for this project's channel (run ends, plans ready, reports).
 SLACK_WEBHOOK_URL=
 
@@ -57,7 +61,6 @@ PROJECT_TEMPLATE = """# Project: {name}
 Project-specific facts every agent reads at startup (shared rules live in neo_research).
 
 **Question / goal**: [one line]
-**Conda env**: [name]
 **Entrypoint**: `python run.py`
 **Data**: [paths and how to obtain them; never commit data]
 **Conventions that override shared defaults**: [report layout, configs, seeds, anything else]
