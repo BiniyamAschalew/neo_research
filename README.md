@@ -45,6 +45,8 @@ You -> mate:  failed  -> "close it": only the summary reaches main
               mature  -> "merge b1":  ar_merge  = compact + review + one squash commit into main
 ```
 
+New idea and branch agents open at the end of the mate's current Herdr workspace, without changing focus. Herdr assigns the next tab number in that workspace (closed-tab IDs are never reused).
+
 The mate keeps its rules in the agent's standing instructions (stays the mate in long sessions), prints the status table itself at start (no tokens), runs with Claude auto mode / Codex "Approve for me" (`--ask` for normal prompts), never edits code itself (any coding task goes straight to a new worktree tab running `ar_plan` then `ar_dev`; enforced by a hook for Claude and, for Codex, a sandbox writable only in `__board__/` plus a mate review policy), and asks you before anything irreversible: full runs, close/branch/merge/drop, new branches, pushes. `__board__/TRACKER.md` on main always shows every branch and worktree.
 
 ## Skills

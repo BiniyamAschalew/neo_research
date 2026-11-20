@@ -1,11 +1,13 @@
 """ar_tree: create an idea worktree, close it as dead (summary only reaches main), win-merge code only."""
 
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "skills/ar_tree/scripts/ar_tree.py"
 
@@ -51,6 +53,69 @@ class ArTreeTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("## Question\nq\n## Approach\na\n## Main results\n| a | b |\n|---|---|\n| 1 | 2 |\n"
                         "## Why it failed\nw\n## Don't retry unless\nd\n")
+
+    def fake_herdr(self):
+        """A different workspace is focused; the caller's existing max tab is 7."""
+        base = Path(self.temp.name)
+        binary = base / "bin"
+        binary.mkdir()
+        self.herdr_log = base / "herdr.jsonl"
+        script = binary / "herdr"
+        script.write_text(f"#!{sys.executable}\n" +
+                          "import json, sys\nfrom pathlib import Path\n" +
+                          f"log = Path({str(self.herdr_log)!r})\n" + """
+args = sys.argv[1:]
+calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+with log.open("a") as handle:
+    handle.write(json.dumps(args) + "\\n")
+if args[:2] == ["tab", "create"]:
+    workspace = args[args.index("--workspace") + 1] if "--workspace" in args else "w9"
+    previous = sum(call[:2] == ["tab", "create"] for call in calls)
+    number = (8 if workspace == "w2" else 2) + previous
+    print(json.dumps({"result": {"tab": {"tab_id": f"{workspace}:t{number}"},
+                                 "root_pane": {"pane_id": f"{workspace}:p{number + 20}"}}}))
+else:
+    print("{}")
+""")
+        script.chmod(0o755)
+        return mock.patch.dict(os.environ, {"PATH": f"{binary}:/usr/bin:/bin",
+                                            "HERDR_ENV": "1", "HERDR_WORKSPACE_ID": "w2"})
+
+    def assert_herdr_launch(self, index, slug, tab, pane):
+        calls = [json.loads(line) for line in self.herdr_log.read_text().splitlines()]
+        self.assertEqual(calls[index], ["tab", "create", "--workspace", "w2", "--cwd",
+                                       str(self.repo / ".trees" / slug), "--label", f"proj:{slug}", "--no-focus"])
+        self.assertEqual(calls[index + 1][:3], ["pane", "run", pane])
+        row = next(row for row in json.loads(self.tree("list", "--json").stdout) if row["slug"] == slug)
+        self.assertEqual((row["tab"], row["pane"]), (tab, pane))
+
+    def test_new_tabs_stay_in_caller_workspace_and_append(self):
+        with self.fake_herdr():
+            for index, slug in enumerate(("first", "second")):
+                self.tree("new", slug, "--question", "q", "--agent", "codex")
+                self.assert_herdr_launch(index * 2, slug, f"w2:t{8 + index}", f"w2:p{28 + index}")
+            self.tree("new", "no-tab", "--question", "q", "--no-herdr")
+            self.assertEqual(len(self.herdr_log.read_text().splitlines()), 4)
+
+    def test_open_branch_tab_stays_in_caller_workspace(self):
+        work = self.start("candidate")
+        self.fill_summary("candidate")
+        self.compact(work)
+        self.tree("branch", "candidate", "--new", "speedups", "--yes")
+        with self.fake_herdr():
+            self.tree("open", "speedups", "--agent", "codex")
+            self.assert_herdr_launch(0, "b1-speedups", "w2:t8", "w2:p28")
+            self.tree("open", "speedups")
+            self.assertEqual(len(self.herdr_log.read_text().splitlines()), 2)
+
+    def test_tab_creation_without_caller_context_keeps_cli_default(self):
+        with self.fake_herdr():
+            os.environ.pop("HERDR_WORKSPACE_ID")
+            os.environ.pop("HERDR_ENV")
+            result = json.loads(self.tree("new", "outside", "--question", "q").stdout)
+            self.assertEqual(result["created"]["tab"], "w9:t2")
+            calls = [json.loads(line) for line in self.herdr_log.read_text().splitlines()]
+            self.assertNotIn("--workspace", calls[0])
 
     def test_dead_keeps_only_summary_on_main(self):
         work = self.start("try-a")

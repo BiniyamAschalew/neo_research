@@ -259,6 +259,13 @@ def herdr(*args):
         return {}
 
 
+def create_herdr_tab(tree, label):
+    """Append in the caller's workspace; Herdr allocates the next tab number."""
+    workspace = os.environ.get("HERDR_WORKSPACE_ID")
+    target = ["--workspace", workspace] if workspace else []
+    return herdr("tab", "create", *target, "--cwd", str(tree), "--label", label, "--no-focus")
+
+
 def cmd_new(args):
     if not SLUG.match(args.slug):
         raise SystemExit("Slug must be lowercase letters, digits and hyphens (e.g. spectral-warmstart).")
@@ -287,7 +294,7 @@ def cmd_new(args):
                worktree=str(tree), tab="", pane="", created=date.today().isoformat(), closed="", agent=args.agent,
                kind="idea")
     if not args.no_herdr:
-        created = herdr("tab", "create", "--cwd", str(tree), "--label", f"{root.name}:{args.slug}", "--no-focus")
+        created = create_herdr_tab(tree, f"{root.name}:{args.slug}")
         if created:
             row["tab"] = created.get("result", {}).get("tab", {}).get("tab_id", "")
             row["pane"] = created.get("result", {}).get("root_pane", {}).get("pane_id", "")
@@ -670,7 +677,7 @@ def cmd_open(args):
         link_shared(tree, root)
     row["worktree"] = str(tree)
     if not args.no_herdr and not row["tab"]:
-        created = herdr("tab", "create", "--cwd", str(tree), "--label", f"{root.name}:{row['slug']}", "--no-focus")
+        created = create_herdr_tab(tree, f"{root.name}:{row['slug']}")
         if created:
             row["tab"] = created.get("result", {}).get("tab", {}).get("tab_id", "")
             row["pane"] = created.get("result", {}).get("root_pane", {}).get("pane_id", "")
