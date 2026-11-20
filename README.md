@@ -21,7 +21,7 @@ Then open `claude` (or `codex`) in `../my-project` and run e.g. `/ar_plan "test 
 ```text
 Terminal:      cd neo_research && ./ar_init ../my-project           # once per project (safe to rerun)
 Herdr tab 0:   cd ../my-project && claude
-               /ar_mate start the Slack watcher
+               /ar_mate                                  # also starts the Slack watcher (mate-watch tab)
 You -> mate:   "new idea: does a cosine schedule beat step decay on val AUC? plan it"
 Mate:          ar_tree new cosine-lr  -> new worktree + Herdr tab with its own agent,
                tells it to run /ar_plan (or /ar_metaplan first)
