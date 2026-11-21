@@ -248,15 +248,6 @@ def finish(cfg, best, rows, reason, started, final_test=True):
     paths = [str(p) for p in (summary, STATE / "log.tsv", STATE / "best.json", STATE / ".gitignore", figure) if p and Path(p).exists()]
     git("add", "-f", "--", *paths)
     git("commit", "-q", "-m", f"goal: summary ({reason})", check=False)
-    table = ["| iter | val | decision | change |", "|---|---|---|---|",
-             *[f"| {r['iter']} | {r['value']} | {r['decision']} | {r['change'][:48]} |" for r in rows[-8:]]]
-    text = (f"Val {cfg['metric']}: baseline {best['baseline']:.4g} → best {best['value']:.4g} "
-            f"({len(kept)}/{len(rows)} changes kept, noise {best['delta']:.3g}).\n"
-            f"Sealed test: {'not run' if test_value is None else f'{test_value:.4g}'}\n" + "\n".join(table)
-            + f"\nSummary: `{summary}`")
-    project = Path(git("worktree", "list", "--porcelain").splitlines()[0].split(" ", 1)[1]).name
-    if final_test:  # completed loops only; crashes and Ctrl+C stay out of Slack (see summary.md)
-        notify(f"ar_goal {project}/{git('rev-parse', '--abbrev-ref', 'HEAD')}: {reason}", text)
     if TRACKER:
         TRACKER.finish(rows, best, test_value, reason)
     print(summary.read_text())
@@ -284,15 +275,6 @@ def plot(rows, best):
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return path
-
-
-def notify(title, text):
-    if not NOTIFY.exists():
-        return
-    spec = importlib.util.spec_from_file_location("slack_notify", NOTIFY)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    print(json.dumps(module.notify(title, module.to_slack(text))))
 
 
 def main():
@@ -387,7 +369,7 @@ def main():
             reason = "goal reached" if reached(best["value"], cfg["goal"], cfg["direction"]) else "max_iters"
     except KeyboardInterrupt:
         reason, clean = "interrupted (Ctrl+C)", False
-    except BaseException as error:  # notify on any crash, then re-raise below
+    except BaseException as error:  # save the local summary on a crash, then re-raise below
         reason, clean = f"crashed: {error}", False
         finish(cfg, best, rows, reason, started, final_test=False)
         raise

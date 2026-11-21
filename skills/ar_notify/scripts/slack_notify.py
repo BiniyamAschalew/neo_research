@@ -6,7 +6,6 @@ from the current directory, so idea worktrees use their project's webhook. AR_SL
 overrides the file. Markdown tables are sent as aligned monospace text tables.
 
     python slack_notify.py --report __board__/reports/v3.x/v3.x.md   # posts the report's ## Slack summary
-    python slack_notify.py --title "E12 done" --text "AUC +0.01"
 """
 
 import argparse
@@ -129,7 +128,7 @@ def result_summary(report):
     """The Slack message of a finished experiment: the report's `## Slack summary` lines Plan, Results,
     Takeaways (at most MAX_SENTENCES sentences in all) and W&B (run or group link). Plans are never posted."""
     report = Path(report)
-    if report.parent.parent.name != "reports":
+    if report.parent.parent.name != "reports" or report.parent.parent.parent.name != "__board__":
         raise ValueError(f"{report} is not a report under __board__/reports/; only finished experiments are posted")
     body = report.read_text()
     title = next((l[2:].strip() for l in body.splitlines() if l.startswith("# ")), report.stem)
@@ -181,23 +180,31 @@ def throttled(webhook, message):
     return ""
 
 
-def notify(title, text, keys=None, dry_run=False, link=True):
+def notify(title="", text="", keys=None, dry_run=False, link=True, report=None):
+    """Only a validated final report can reach Slack; legacy free-text calls are refused."""
+    if report is None:
+        return {"status": "refused", "reason": "Slack is reserved for final ar_dev report summaries; use --report"}
+    try:
+        title, text = result_summary(report)
+    except (OSError, ValueError) as error:
+        return {"status": "refused", "reason": str(error)}
     keys = keys or load_keys()
     message = f"*{title}*\n{text}".strip()
-    if link and keys.get("WANDB_URL"):
-        message += f"\nW&B: {keys['WANDB_URL']}"
     if len(message) > MAX_TEXT:
         message = message[:MAX_TEXT - 4] + "\n…"
     if dry_run:
         return {"status": "dry_run", "message": message}
     if not keys["SLACK_WEBHOOK_URL"]:
         return {"status": "skipped", "reason": f"no SLACK_WEBHOOK_URL in {keys.get('_file', PROJECT_ENV)}"}
+    if already_sent(report):
+        return {"status": "suppressed", "reason": "this report version was already sent"}
     if reason := throttled(keys["SLACK_WEBHOOK_URL"], message):
         return {"status": "suppressed", "reason": reason}
     try:
         request = urllib.request.Request(keys["SLACK_WEBHOOK_URL"], json.dumps({"text": message}).encode(),
                                          {"Content-Type": "application/json"})
         urllib.request.urlopen(request, timeout=30).read()
+        mark_sent(report)
         return {"status": "sent"}
     except Exception as error:  # a notification must never break the experiment
         return {"status": "failed", "reason": str(error)}
@@ -210,17 +217,7 @@ def main():
     parser.add_argument("--text", default="")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    title, text = args.title or "AutoResearch", to_slack(args.text)
-    if args.report:
-        try:
-            title, text = result_summary(args.report)
-        except ValueError as error:
-            print(json.dumps({"status": "refused", "reason": str(error)}))
-            return 0
-        title = args.title or title
-    result = notify(title, text, dry_run=args.dry_run, link=not args.report)
-    if args.report and result["status"] == "sent":
-        mark_sent(args.report)
+    result = notify(report=args.report, dry_run=args.dry_run)
     print(json.dumps(result))
 
 

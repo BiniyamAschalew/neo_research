@@ -1,6 +1,6 @@
 ---
 name: ar_goal
-description: Set up and run an unattended (overnight) improvement loop inside an ar_tree idea worktree. Each iteration a fresh agent makes one component change within allowed files; the driver keeps it only if the validation metric beats the best by more than measured noise, reverts otherwise, evaluates the sealed test split once at the end and sends a Slack summary. Use for measurable model tuning with minor component updates, not for open-ended research questions.
+description: Set up and run an unattended (overnight) improvement loop inside an ar_tree idea worktree. Each iteration a fresh agent makes one component change within allowed files; the driver keeps it only if the validation metric beats the best by more than measured noise, reverts otherwise, evaluates the sealed test split once at the end and writes a local summary. Use for measurable model tuning with minor component updates, not for open-ended research questions.
 ---
 
 # AR Goal
@@ -28,4 +28,4 @@ Each iteration: fresh headless agent session (`agent: claude|codex`, or any `age
 
 With `WANDB_URL` set in `__board__/project.env` (and wandb installed), the driver keeps one W&B run `<branch>-goal` with val and best-so-far as curves over iterations and a final attempts table; eval runs it launches get group `<branch>-goal` and job type `goal-eval`.
 
-The driver evaluates the best commit once on the test split, writes `__board__/goal/summary.md` and `progress.png`, commits them, and sends a Slack text summary via `ar_notify` (also on crash or Ctrl+C). Report the test number as the result; the validation number is selection-biased after many iterations. Kept changes are separate commits, so the human can revert or cherry-pick any of them. When the idea closes, use the summary for `__board__/ideas/<slug>.md`.
+The driver evaluates the best commit once on the test split, writes `__board__/goal/summary.md` and `progress.png`, commits them, and keeps the summary local. It sends no Slack notification; include its results in the final ar_dev report when part of an experiment task. Report the test number as the result; the validation number is selection-biased after many iterations. Kept changes are separate commits, so the human can revert or cherry-pick any of them. When the idea closes, use the summary for `__board__/ideas/<slug>.md`.

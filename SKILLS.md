@@ -42,7 +42,7 @@ python .agents/skills/ar_mate/scripts/mate_status.py [--json]       # ideas, age
 python .agents/skills/ar_mate/scripts/mate_task.py "Create .gitignore for Python caches"  # plain maintenance
 python .agents/skills/ar_mate/scripts/mate_watch.py --ensure        # inbox watcher (started by ar_mate)
 ```
-The mate discusses and coordinates only: routine maintenance uses `mate_task.py` to hand a plain instruction to an agent in the existing checkout, without plans, research worktrees, reports or research logging. Research ideation and experiments use `ar_tree new` and the research skills (enforced: Claude by a hook, Codex by a read-only sandbox whose escalations are reviewed against `skills/ar_mate/mate_review_policy.md`). The watcher posts when a plan is ready, a report lands, a goal loop ends or an agent is blocked; it restarts itself after `git pull`.
+The mate discusses and coordinates only: routine maintenance uses `mate_task.py` to hand a plain instruction to an agent in the existing checkout, without plans, research worktrees, reports or research logging. Research ideation and experiments use `ar_tree new` and the research skills (enforced: Claude by a hook, Codex by a read-only sandbox whose escalations are reviewed against `skills/ar_mate/mate_review_policy.md`). The watcher writes only to the local inbox when a plan is ready, a report lands, a goal loop ends or an agent is blocked; it restarts itself after `git pull` or local script edits.
 
 ## `ar_goal`
 ```bash
@@ -50,14 +50,14 @@ cp .agents/skills/ar_goal/goal.example.yaml __board__/goal.yaml      # edit and 
 python .agents/skills/ar_goal/scripts/goal.py __board__/goal.yaml --dry-run   # baseline + noise threshold
 python .agents/skills/ar_goal/scripts/goal.py __board__/goal.yaml             # run / resume
 ```
-Inside an idea worktree: each iteration a fresh agent (`agent: claude|codex`) makes one change in `allowed` files; kept only if validation beats the best by more than the measured noise. Stops at goal, iterations, hours or 3 failures; sealed test once at the end; Slack summary; one W&B run with progress curves. Your eval reads `AR_GOAL_SPLIT=val|test` and writes `metrics_file`.
+Inside an idea worktree: each iteration a fresh agent (`agent: claude|codex`) makes one change in `allowed` files; kept only if validation beats the best by more than the measured noise. Stops at goal, iterations, hours or 3 failures; sealed test once at the end; local summary; one W&B run with progress curves. Your eval reads `AR_GOAL_SPLIT=val|test` and writes `metrics_file`.
 
 ## `ar_notify`
 ```bash
 python .agents/skills/ar_notify/scripts/notify_run.py --notify --name "v3 full" -- python run.py
 python .agents/skills/ar_notify/scripts/slack_notify.py --report __board__/reports/v3/v3.md
 ```
-`notify_run.py` streams output live, passes the project's W&B entity/project and keeps the run's exit code. It is quiet by default (a task's one Slack message is ar_dev's result summary); with `--notify` it posts on success the `## Slack summary` of a report written during the run (or the output tail). `slack_notify.py --report` sends only a report's Slack summary (plan, results, takeaways, W&B link; at most 7 sentences) and refuses plans; no webhook means `skipped`.
+`notify_run.py` streams output live, passes the project's W&B entity/project and keeps the run's exit code. It is quiet by default (a task's one Slack message is ar_dev's result summary); with `--notify` it posts only the valid final report summary written during a successful run, and stays silent if none exists. `slack_notify.py --report` sends only a report's Slack summary (plan, results, takeaways, W&B link; at most 7 sentences) and refuses plans, arbitrary text, agent-status alerts and logs; no webhook means `skipped`.
 
 ## Planning, running, notes
 | Skill | Run | Notes |

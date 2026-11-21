@@ -24,11 +24,13 @@ Before a research handoff, ask the human for anything the experiment cannot run 
 
 With Claude as the mate, file edits outside `__board__/` are blocked by a hook; with Codex, the sandbox can write only in `__board__/` and anything more is reviewed against `mate_review_policy.md`, which denies code edits. With any agent, the rule is the same. Never ask to run a read outside the sandbox: reads always work inside it.
 
+Every agent you spawn (idea, branch and maintenance tabs, `ar_goal` iterations) runs without permission prompts (`subagent`/`headless` flags in `skills/references/agents.py`), so the AGENTS.md rules (no `git push`, no `--yes` without the human) are enforced by instruction only.
+
 ## Start of a session
 
 The `ar_mate` launcher already printed the status table and unread events, and started the watcher, before you started. Do nothing until the human writes; then answer their message (read `__board__/TRACKER.md` only when the question is about branches or ideas). If you were started some other way, run `python .agents/skills/ar_mate/scripts/mate_watch.py --ensure` once.
 
-The watcher appends to your inbox without using tokens when a plan is ready, a report lands, an `ar_goal` loop ends, or an idea agent is blocked or finishes its turn. It never posts to Slack. Slack gets only completed research work: each experiment task's final report and each completed `ar_goal` loop, capped per project (no duplicates, at most `AR_SLACK_MAX_PER_HOUR`, default 3).
+The watcher appends to your inbox without using tokens when a plan is ready, a report lands, an `ar_goal` loop ends, or an idea agent is blocked or finishes its turn. It never posts to Slack. Slack gets only completed research work: each experiment task's final ar_dev report, capped per project (no duplicates, at most `AR_SLACK_MAX_PER_HOUR`, default 3).
 
 ## Each turn
 

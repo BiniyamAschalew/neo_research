@@ -10,17 +10,14 @@ only if the run completes (exit 0), never for errors or Ctrl+C.
 
 Output streams to the terminal as usual; the wrapper exits with the command's exit code.
 If a report under __board__/reports/ was written during the run, its ## Slack summary is sent;
-otherwise the status line and the last lines of output are.
+otherwise Slack stays silent. Raw output is never sent.
 """
 
 import argparse
-from collections import deque
 import importlib.util
 import json
 import os
 from pathlib import Path
-import shlex
-import socket
 import subprocess
 import sys
 import time
@@ -30,55 +27,24 @@ SLACK = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SLACK)
 
 
-def duration(seconds):
-    hours, rest = divmod(int(seconds), 3600)
-    return f"{hours}h{rest // 60:02d}m" if hours else f"{rest // 60}m{rest % 60:02d}s"
-
-
-def git_label():
-    try:
-        # main checkout name, so idea worktrees still show which project they belong to
-        first = subprocess.run(["git", "worktree", "list", "--porcelain"], text=True, capture_output=True, check=True).stdout.splitlines()[0]
-        branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True, capture_output=True).stdout.strip()
-        return f"{Path(first.split(' ', 1)[1]).name}/{branch}"
-    except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
-        return Path.cwd().name
-
-
 def new_report(pattern, since):
     files = [p for p in Path.cwd().glob(pattern) if p.stat().st_mtime >= since]
     return max(files, key=lambda p: p.stat().st_mtime) if files else None
 
 
-def message(name, command, code, seconds, tail, report):
-    status = "finished" if code == 0 else ("interrupted" if code in (130, -2) else f"FAILED (exit {code})")
-    title = f"{git_label()}: {name or command[:60]} {status} in {duration(seconds)}"
-    text = f"`{command}` on {socket.gethostname()}"
-    try:
-        _, summary = SLACK.result_summary(report) if report else (None, "")
-    except ValueError:
-        summary = ""
-    if summary:
-        return title, summary, False  # the summary carries its own W&B link
-    if tail:
-        text += "\nLast output:\n```\n" + "\n".join(tail) + "\n```"
-    return title, text, True
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--name", help="Short run label for the Slack title")
-    parser.add_argument("--notify", action="store_true", help="Post to Slack when the run ends (success, failure or Ctrl+C)")
+    parser.add_argument("--name", help="Run label (Slack uses the final report title)")
+    parser.add_argument("--notify", action="store_true", help="On success, send a new final report summary if present; otherwise stay silent")
     parser.add_argument("--report-glob", default="__board__/reports/*/*.md")
-    parser.add_argument("--tail", type=int, default=15)
+    parser.add_argument("--tail", type=int, default=15, help=argparse.SUPPRESS)  # legacy flag; logs stay local
     parser.add_argument("command", nargs=argparse.REMAINDER, help="-- <command ...>")
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not command:
         parser.error("give the command after --")
     started = time.time()
-    tail = deque(maxlen=args.tail)
-    code, process, pending = 1, None, b""
+    code, process = 1, None
     try:
         # unbuffered child + raw chunk passthrough: progress bars and logs appear live
         env = {**os.environ, "PYTHONUNBUFFERED": "1", **SLACK.tracking_env(SLACK.load_keys())}
@@ -86,27 +52,20 @@ def main():
         while chunk := process.stdout.read1(65536):
             sys.stdout.buffer.write(chunk)
             sys.stdout.buffer.flush()
-            pending += chunk
-            *lines, pending = pending.replace(b"\r", b"\n").split(b"\n")
-            tail.extend(l.decode(errors="replace").rstrip()[:200] for l in lines if l.strip())
         code = process.wait()
     except KeyboardInterrupt:
         if process:
             process.terminate()
         code = 130
     except OSError as error:  # command not found / not executable
-        tail.append(f"could not start: {error}")
+        print(f"could not start: {error}", file=sys.stderr)
         code = 127
     finally:
-        if pending.strip():
-            tail.append(pending.decode(errors="replace").rstrip()[:200])
-        if args.notify and code == 0:  # completed runs only; failures stay in the terminal and logs
+        if args.notify and code == 0:
             report = new_report(args.report_glob, started)
-            title, text, link = message(args.name, shlex.join(command), code, time.time() - started, list(tail), report)
-            result = SLACK.notify(title, text, link=link)
-            if report and result["status"] == "sent":
-                SLACK.mark_sent(report)
-            print(f"[ar_notify] {json.dumps(result)}", file=sys.stderr)
+            if report:
+                result = SLACK.notify(report=report)
+                print(f"[ar_notify] {json.dumps(result)}", file=sys.stderr)
     return code
 
 

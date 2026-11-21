@@ -7,7 +7,7 @@
 
 Every --interval seconds it appends to __board__/mate/inbox.md (read by `mate_status.py --inbox`): a new plan,
 a new report, a finished ar_goal loop, an idea agent blocked or finished. Costs no tokens. Slack only ever
-gets completed work: a task's final report (ar_dev) and a completed ar_goal loop.
+gets only a task's final development report (ar_dev).
 """
 
 import argparse
@@ -98,6 +98,12 @@ def git_head(path):
     return result.stdout.strip()
 
 
+def source_version():
+    """Reload local edits too, including changes to imported notification code."""
+    paths = (Path(__file__), Path(STATUS.__file__), Path(AR_TREE.__file__), Path(SLACK.__file__))
+    return git_head(HERE.parents[2]), tuple(path.stat().st_mtime_ns for path in paths)
+
+
 def running(pid_path):
     try:
         pid = int(pid_path.read_text())
@@ -132,16 +138,15 @@ def main():
     if not args.once:
         pid_path.write_text(str(os.getpid()))
     state = json.loads(state_path.read_text()) if state_path.exists() else {"files": {}, "agents": {}, "started": False}
-    neo = HERE.parents[2]  # scripts/ -> ar_mate/ -> skills/ -> neo_research/
-    version = git_head(neo)
-    print(f"watching {root.name} ideas every {args.interval}s; Slack settings: {SLACK.env_file(root)}", flush=True)
+    version = source_version()
+    print(f"watching {root.name} ideas every {args.interval}s; local inbox only (no Slack)", flush=True)
     while True:
         check(root, state)
         state_path.write_text(json.dumps(state))
         if args.once:
             return
         time.sleep(args.interval)
-        if git_head(neo) != version:  # neo_research was updated (git pull): restart on the new code
+        if source_version() != version:  # git updates and local edits both reload the watcher
             print("neo_research updated; restarting watcher", flush=True)
             os.execv(sys.executable, [sys.executable, str(Path(__file__).resolve()), "--interval", str(args.interval)])
 

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 NEO = Path(__file__).resolve().parents[1]
 TREE = NEO / "skills/ar_tree/scripts/ar_tree.py"
@@ -58,6 +59,37 @@ class MateWatchTests(unittest.TestCase):
             self.assertEqual([("plan ready" in l, "experiment done" in l) for l in new][0], (True, False))
             self.assertTrue(any("experiment done" in l and "v1.x.md" in l for l in new))
             self.assertEqual(watch.STATUS.unread(repo), [])                     # cursor advanced
+
+    def test_blocked_agent_events_stay_in_the_local_inbox(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            spec = importlib.util.spec_from_file_location("mate_watch", NEO / "skills/ar_mate/scripts/mate_watch.py")
+            watch = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(watch)
+            state = {"files": {}, "agents": {"idea": "working"}, "started": True}
+            row = {"slug": "idea", "worktree": str(root), "status": "active", "pane": "w1:p2"}
+            with mock.patch.object(watch.AR_TREE, "read_rows", return_value=[row]), \
+                 mock.patch.object(watch.STATUS, "agent_state", side_effect=["blocked", "working", "blocked", "done"]), \
+                 mock.patch.object(watch.SLACK, "notify") as send:
+                for _ in range(4):
+                    watch.check(root, state)
+                send.assert_not_called()
+            inbox = watch.inbox_path(root).read_text()
+            self.assertEqual(inbox.count("agent needs you"), 2)
+            self.assertIn("agent finished its turn", inbox)
+
+    def test_watcher_detects_local_edits_without_a_commit(self):
+        spec = importlib.util.spec_from_file_location("mate_watch", NEO / "skills/ar_mate/scripts/mate_watch.py")
+        watch = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(watch)
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "mate_watch.py"
+            source.write_text("original")
+            with mock.patch.object(watch, "__file__", str(source)), mock.patch.object(watch, "git_head", return_value="same-head"):
+                before = watch.source_version()
+                stat = source.stat()
+                os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+                self.assertNotEqual(watch.source_version(), before)
 
     def test_ensure_starts_once(self):
         with tempfile.TemporaryDirectory() as temp:

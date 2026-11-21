@@ -341,14 +341,14 @@ if __name__ == "__main__":
 
 
 class AgentCommandTests(unittest.TestCase):
-    def test_idea_agents_get_approve_for_me(self):
+    def test_idea_agents_run_fully_auto(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location("ar_tree_mod", SCRIPT)
         tree = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(tree)
-        self.assertEqual(tree.agent_command("claude")[-2:], ["--permission-mode", "auto"])
+        self.assertEqual(tree.agent_command("claude"), ["claude", "--dangerously-skip-permissions"])
         codex = tree.agent_command("codex")
-        self.assertIn('approvals_reviewer="auto_review"', codex)
+        self.assertEqual(codex, ["codex", "--dangerously-bypass-approvals-and-sandbox"])
         self.assertNotIn("--cd", codex)        # idea agents write code; only the mate is sandboxed to __board__
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start the first mate for a project: Slack watcher in the background, then the chosen agent
+"""Start the first mate for a project: local inbox watcher in the background, then the chosen agent
 with the ar_mate rules in its standing instructions, so it stays the mate through long sessions.
 
     ar_mate                      # in the project folder; default agent: claude (or $AR_AGENT)
@@ -40,7 +40,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("agent", nargs="?", default=AGENTS.DEFAULT, help=f"{' | '.join(AGENTS.AGENTS)} | any agent CLI")
     parser.add_argument("--project", default=".")
-    parser.add_argument("--no-watch", action="store_true", help="Do not start the Slack watcher")
+    parser.add_argument("--no-watch", action="store_true", help="Do not start the local inbox watcher")
     parser.add_argument("--ask", action="store_true", help="Use the agent's normal approval prompts instead of "
                         "Claude auto mode / Codex 'Approve for me'")
     argv = sys.argv[1:]

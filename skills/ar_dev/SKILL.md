@@ -1,6 +1,6 @@
 ---
 name: ar_dev
-description: "Implement and run an AutoResearch plan from __board__/plans/: follow its Experiment Card, reuse and extend the entity-organized code base, run the tiny profile through run.py, launch runs through notify_run.py (Slack on completion), log curated W&B results, refresh structure.md, and write a report that opens with the card as Planned vs Actual. For research work, not routine downloads or repository housekeeping."
+description: "Implement and run an AutoResearch plan from __board__/plans/: follow its Experiment Card, reuse and extend the entity-organized code base, run the tiny profile through run.py, launch runs through notify_run.py (Slack only for the final report), log curated W&B results, refresh structure.md, and write a report that opens with the card as Planned vs Actual. For research work, not routine downloads or repository housekeeping."
 ---
 
 # AR Dev
@@ -29,7 +29,7 @@ Read [code style](../references/code-style.md) and, for executable work, [struct
 
 - Tiny first: `python run.py` with `PROFILE = "tiny"` on the tracked real-data fixture, actual model forward passes and (for trainable methods) a couple of optimizer updates, outputs isolated from results. Report the device actually used; never claim untested backends.
 - Every run, tiny or full, goes through the run wrapper, which passes the project's W&B entity/project to it:
-  `python .agents/skills/ar_notify/scripts/notify_run.py --name "<plan> <profile>" -- python run.py` (put the GPU claim helper from `~/.config/ar/host.md` inside it when required). Runs stay quiet; the task's one Slack message is the final report below. Add `--notify` only for a run you leave running after the task ends.
+  `python .agents/skills/ar_notify/scripts/notify_run.py --name "<plan> <profile>" -- python run.py` (put the GPU claim helper from `~/.config/ar/host.md` inside it when required). Runs stay quiet; the task's one Slack message is the final report below. Add `--notify` only for a run you leave running after the task ends that will write its final development report; no report means no Slack message.
 - Full profile only for scientific acquisition the plan authorizes. Long runs: start in a Herdr tab or `nohup`, never block the session on them.
 - Tests: run those the plan lists or the human requests; otherwise write `Verification: not required by plan or request`. No broad extra suites, no test-only installs.
 - W&B: follow [tracking](../references/tracking.md) (descriptive names and groups, curves only on a real x-axis, one-off results in `run.summary` or tables, debug runs separate). Training runs log train/val quantities during training every `log_every`/`eval_every` steps, then final values as summary and tables; before the full run, confirm the tiny run's history has several points per curve, and report the logged keys and point counts in Planned vs Actual.

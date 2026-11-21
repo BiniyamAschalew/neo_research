@@ -240,9 +240,9 @@ def task_prompt(agent, root, task, quick=False):
 
 
 def agent_command(name):
-    """Interactive agent for an idea/branch tab, with the same "approve for me" permissions as the mate."""
+    """Interactive agent for a spawned idea/branch/maintenance tab: fully auto-approved ('subagent' flags)."""
     agent = AGENTS.spec(name)
-    return [*agent["interactive"], *agent.get("mate", [])]
+    return [*agent["interactive"], *agent.get("subagent", [])]
 
 
 def herdr(*args):
