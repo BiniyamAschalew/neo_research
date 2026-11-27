@@ -41,7 +41,7 @@ class ArInitTests(unittest.TestCase):
                          os.path.realpath(self.project / "__board__/claude/settings.local.json"))
         self.assertTrue((self.project / ".agents/skills/ar_tree/SKILL.md").exists())
         self.assertIn("SLACK_WEBHOOK_URL=", (self.project / "__board__/project.env").read_text())
-        self.assertEqual(status(self.project).split(), ["??", "__board__/", "??", "assets.links"])  # board + manifest to commit
+        self.assertEqual(status(self.project).split(), ["??", ".gitignore", "??", "__board__/"])
         tracked = subprocess.run(["git", "add", "-n", "__board__"], cwd=self.project, text=True, capture_output=True).stdout
         self.assertNotIn("project.env", tracked)
         before = (self.project / "__board__/PROJECT.md").read_text()
@@ -113,6 +113,26 @@ class ArInitTests(unittest.TestCase):
     def test_dry_run_changes_nothing(self):
         AR_INIT.init(self.project, dry_run=True)
         self.assertEqual(list(self.project.iterdir()), [self.project / ".git"])
+
+    def test_results_only_policy_and_index_migration_preserve_source(self):
+        source = self.project / "run.py"
+        source.write_text("print('local source')\n")
+        subprocess.run(["git", "add", "run.py"], cwd=self.project, check=True)
+        AR_INIT.init(self.project, untrack=True)
+        report = self.project / "__board__/reports/v1/report.md"
+        report.parent.mkdir(parents=True)
+        report.write_text("result\n")
+        raw = report.parent / "local/raw.txt"
+        raw.parent.mkdir()
+        raw.write_text("raw\n")
+        subprocess.run(["git", "add", "."], cwd=self.project, check=True)
+        paths = subprocess.check_output(["git", "ls-files"], cwd=self.project, text=True).splitlines()
+        self.assertIn(".gitignore", paths)
+        self.assertIn("__board__/reports/v1/report.md", paths)
+        self.assertTrue(all(p == ".gitignore" or p.startswith("__board__/") for p in paths))
+        self.assertNotIn("__board__/project.env", paths)
+        self.assertNotIn("__board__/reports/v1/local/raw.txt", paths)
+        self.assertEqual(source.read_text(), "print('local source')\n")
 
     def test_non_git_folder_is_refused(self):
         plain = Path(self.temp.name) / "plain"

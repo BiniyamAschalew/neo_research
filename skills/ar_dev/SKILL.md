@@ -15,6 +15,8 @@ Use the named plan (`vN.slug`, filename or path) or the highest-numbered `__boar
 
 ## 2. Implement
 
+Inherit the plan's idea ID, linked document and exact hypothesis. Resolve missing legacy references through `ar_idea` before running; do not infer the hypothesis retrospectively from results.
+
 Read [code style](../references/code-style.md) and, for executable work, [structured execution](../references/structured-execution.md).
 
 - Start from `structure.md`, verified against the source you touch. Extend existing entities (`models/`, `methods/`, `data/`, `utils/<topic>/`) and register new ones in `_build.py`; never copy code per version or experiment.
@@ -77,4 +79,8 @@ For scientific results, publish per [artifact policy](../references/artifact-pol
 
 ## 5. Finish
 
-Update `STATUS.md` (see board conventions). Commit the code, configs and board files of this iteration in the current worktree or branch (never push, never commit data or secrets). Then, only when the task produced experiment results (not for a plan, a tiny/debug-only run or a failed run), send its Slack summary: `python .agents/skills/ar_notify/scripts/slack_notify.py --report <report.md>` (a `skipped`, `failed` or `refused` status never changes the outcome; fix a `refused` summary and resend once).
+Include the idea ID, portable document link and tested hypothesis in report metadata. Update the idea's evidence table with one brief row linking plan/report, decisive numbers and `supports | contradicts | mixed | inconclusive` plus reason. Refresh its 2–4 sentence current position and next unresolved question. Replace the same report's row on rerun. Keep details in the report and preserve the original hypothesis. Debug-only runs and execution failures are inconclusive, never scientific confirmation.
+
+Research-project Git publication tracks only `.gitignore` and curated `__board__/` files. Source/configs stay local; record source fingerprints and prerequisites because the evidence commit does not identify ignored source. Never force-add ignored files.
+
+Update `STATUS.md` (see board conventions). Commit only `.gitignore` and curated board evidence, including the idea update, in the current worktree or branch (never push or commit secrets/raw outputs). Then, only when the task produced experiment results (not for a plan, a tiny/debug-only run or a failed run), send its Slack summary: `python .agents/skills/ar_notify/scripts/slack_notify.py --report <report.md>` (a `skipped`, `failed` or `refused` status never changes the outcome; fix a `refused` summary and resend once).

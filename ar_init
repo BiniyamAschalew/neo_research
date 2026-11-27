@@ -3,7 +3,7 @@
 
     ./ar_init <project>            # set up or upgrade; safe to rerun
     ./ar_init <project> --dry-run  # show what would change
-    ./ar_init <project> --untrack  # also untrack agent files an older setup committed (index only)
+    ./ar_init <project> --untrack  # untrack ignored source/agent files (index only; local copies kept)
 
 Shared, non-project parts are (re)linked to this checkout; project-specific parts are kept:
 
@@ -13,8 +13,8 @@ Shared, non-project parts are (re)linked to this checkout; project-specific part
     .claude/                      real folder (per project)
     .claude/settings.local.json -> ../__board__/claude/settings.local.json   this project's own state
     __board__/project.env         code env, asset store, Slack webhook, W&B link (never committed)
-    assets.links                  shared data/checkpoints soft-linked from the machine's asset store
-    __board__/                    never touched, except creating PROJECT.md, project.env and claude/
+    assets.links                  local shared data/checkpoint links (not committed)
+    __board__/                    project-owned evidence; PROJECT.md/project.env created if missing
 
 On an existing setup, anything that came from neo_research (old links, copies of shared
 skills/commands, old versions of AGENTS.md) is replaced by a link. Anything project-specific
@@ -39,6 +39,18 @@ LOCAL_SETTINGS = (".claude/settings.local.json", "__board__/claude/settings.loca
 EXCLUDE = [".agents", ".codex", "AGENTS.md", ".claude/commands", ".claude/CLAUDE.md",
            ".claude/settings.local.json", ".claude/*.lock", "__board__/claude/", "__board__/notes/local/",
            "__board__/project.env", "__board__/mate/"]
+RESULTS_IGNORE = """# neo_research: publish results; keep project source local.
+/*
+!/.gitignore
+!/__board__/
+/__board__/project.env
+/__board__/claude/
+/__board__/mate/
+/__board__/notes/local/
+/__board__/reports/**/local/
+**/__pycache__/
+.DS_Store
+"""
 JUNK = {".DS_Store", "__pycache__"}
 HOST_FILE = Path(os.environ.get("AR_HOST_FILE", Path.home() / ".config/ar/host.md"))
 HOSTS = {"irteam-gpu.md": Path("/home1/irteam/data-vol1/persist_notify.py")}
@@ -65,7 +77,7 @@ ASSETS = "assets.links"
 ASSETS_TEMPLATE = """# Shared data and checkpoints: kept outside git in one store per machine and soft-linked here.
 # One line per link:  <path in this repo> = <path under ASSETS_ROOT, or an absolute path>
 # ASSETS_ROOT comes from __board__/project.env (or the AR_ASSETS environment variable).
-# ar_init, ar_mate and every ar_tree worktree create these links; they are never committed.
+# ar_init, ar_mate and every ar_tree worktree create these links; manifest and links stay local.
 #
 # data/raw = datasets/citation
 # models/checkpoints = checkpoints/my-project
@@ -325,15 +337,16 @@ def git_exclude(project, dry_run, log, untrack=False):
             exclude.parent.mkdir(parents=True, exist_ok=True)
             with exclude.open("a") as handle:
                 handle.write("\n# neo_research ar_init (machine-specific links)\n" + "\n".join(missing) + "\n")
-    tracked = subprocess.run(["git", "ls-files", "--", *SHARED, LOCAL_SETTINGS[0]], cwd=project, text=True,
-                             capture_output=True).stdout.split()
+    tracked = subprocess.run(["git", "ls-files", "-z", "--cached", "--ignored", "--exclude-standard"],
+                             cwd=project, text=True, capture_output=True, check=True).stdout.rstrip("\0").split("\0")
+    tracked = [p for p in tracked if p]
     if not tracked:
         return
     if untrack and not dry_run:
         subprocess.run(["git", "rm", "-r", "-q", "--cached", "-f", "--", *tracked], cwd=project, check=True)
-        log.append(f"untrack  {len(tracked)} agent files from an older setup (index only); commit to finish")
+        log.append(f"untrack  {len(tracked)} ignored files (index only; local source preserved); commit to finish")
     else:
-        log.append(f"note     {len(tracked)} agent files from an older setup are still tracked by git "
+        log.append(f"note     {len(tracked)} ignored files are still tracked by git "
                    f"(e.g. {tracked[0]}); rerun with --untrack, then commit")
 
 
@@ -374,13 +387,20 @@ def init(project, dry_run=False, untrack=False):
     setup = Setup(project, dry_run)
     setup.log += [f"project  {project}", f"shared   {NEO} (branch {branch or '?'}; linked projects follow it live)"]
     require_git(project, setup.log)
+    ignore = project / ".gitignore"
+    current = ignore.read_text() if ignore.exists() else ""
+    marker = "# neo_research: publish results; keep project source local."
+    if marker not in current:
+        setup.log.append("ignore   .gitignore (publish only .gitignore and curated __board__/)")
+        if not dry_run:
+            ignore.write_text(current.rstrip() + "\n\n" + RESULTS_IGNORE)
     if not (project / "__board__").exists():
         setup.log.append("create   __board__/")
     setup.ensure_project_md()
     setup.project_env()
     setup.agents()
     if not (project / ASSETS).exists():
-        setup.log.append(f"create   {ASSETS} (shared data/checkpoint links; commit it)")
+        setup.log.append(f"create   {ASSETS} (local shared data/checkpoint links; not committed)")
         if not dry_run:
             (project / ASSETS).write_text(ASSETS_TEMPLATE)
     link_assets(project, dry_run=dry_run, log=setup.log)
@@ -396,7 +416,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("project", type=Path)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--untrack", action="store_true", help="git rm --cached agent files an older setup committed")
+    parser.add_argument("--untrack", action="store_true", help="untrack ignored files, preserving their local copies")
     args = parser.parse_args()
     print("\n".join(init(args.project, args.dry_run, args.untrack)))
     return 0

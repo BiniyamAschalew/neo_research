@@ -2,7 +2,7 @@
 
 Shared research workflows for Claude Code and Codex. One checkout serves all your projects: the skills are linked in, while each project keeps its own research board (`__board__/`) and settings. Updating means `git pull`.
 
-The organizing idea: **main is the paper, branches are its method sections, worktrees are candidate ideas.** Failed ideas leave only a summary; working ideas move up only after their code is compacted and reviewed by a second agent, so main stays small enough to read and debug yourself.
+The organizing idea: **main is the paper, branches are its method sections, worktrees are candidate ideas.** Every idea retains its question, literature and cumulative conclusions. Working ideas move up after compaction and independent review; board evidence moves through Git and approved source transfers locally.
 
 ## Setup
 
@@ -19,14 +19,32 @@ Then fill in `my-project/__board__/`:
 | `PROJECT.md` | yes | data paths, conventions that override the defaults |
 | `project.env` | **never** | `CONDA_ENV` (or `ENV_ACTIVATE`), `ASSETS_ROOT` (this machine's shared store for datasets and checkpoints), `SLACK_WEBHOOK_URL` ([Incoming Webhook](https://api.slack.com/messaging/webhooks) for this project's channel), `WANDB_URL` (`https://wandb.ai/<entity>/<project>`) |
 
-And in the repository root, commit `assets.links`: which large folders are soft-linked from the store, e.g. `data/raw = datasets/citation`, `models/checkpoints = checkpoints/my-project`. Every worktree gets the same links, so data and checkpoints are shared, never copied or committed.
+In the repository root, keep a local `assets.links` describing large folders soft-linked from the store, e.g. `data/raw = datasets/citation`. Worktrees share the datasets and checkpoints through those links.
+
+Research projects track only `.gitignore` and curated `__board__/` content. Source/configs stay local; private settings, backups and raw outputs remain ignored. `ar_init` installs the policy. For an existing project, run `ar_init <project> --dry-run`, then `ar_init <project> --untrack` and commit the index migration; local source files and past history are preserved. The neo_research framework repository itself still tracks its source.
+
+## Ideas Before Experiments
+
+```text
+ar_idea "Does the proposed mechanism explain the improvement?"
+ar_plan "Test the unresolved claim in I001"
+ar_dev v1
+
+__board__/ideas/I001-<slug>/
+  idea.md
+  papers/
+    summary.md
+    reference.pdf
+```
+
+The concise idea records the hypothesis, theoretical assumptions/falsifier, closest literature, reference reproduction, one evidence row per report and current conclusion. `papers/summary.md` gives detailed source-cited summaries of every reference. Each plan/report links the idea ID and exact hypothesis; development adds a brief result and supports/contradicts/mixed/inconclusive takeaway. An existing published result normally becomes the first small reproduction. `ar_metaplan` remains an alias for this workflow.
 
 Requirements: git, Python 3.9+, Claude Code and/or Codex. Optional: [Herdr](https://herdr.dev) (one tab per agent), W&B, PyYAML (`ar_goal`). Machine-wide rules such as GPU claims go in `~/.config/ar/host.md` (installed from `hosts/` when `ar_init` recognizes the machine).
 
 ## How it works
 
 ```text
-main                          the paper: best compacted code + summaries + __board__/TRACKER.md
+main                          the paper: curated board evidence + __board__/TRACKER.md; source stays local
  ├─ b1/ensembles              branches = method sections: few (≤4 active), general, named b<i>/<name>
  │   └─ worktree idea/bagging     candidate ideas inside a section
  ├─ b2/context-compression
@@ -37,9 +55,9 @@ main                          the paper: best compacted code + summaries + __boa
 Herdr tab 0:  cd my-project && ar_mate          # or: ar_mate codex   (first mate + local inbox watcher)
 You -> mate:  "new idea in b1: does bagging help?"
 Mate:         ar_tree new bagging --from b1 --task "..."  -> .trees/bagging + tab whose agent runs
-              ar_metaplan -> ar_plan -> ar_dev on its own (runs log to the project's W&B)
+              ar_idea -> ar_plan -> ar_dev on its own (runs log to the project's W&B)
 Slack:        one message when ar_dev ends with results: plan, results, takeaways, W&B link (≤7 sentences)
-You -> mate:  failed  -> "close it": only the summary reaches main
+You -> mate:  failed  -> "close it": idea + papers + linked evidence reach main
               works   -> "branch it": ar_branch = compact + cross-agent review + merge into b1
               mature  -> "merge b1":  ar_merge  = compact + review + one squash commit into main
 ```
@@ -56,7 +74,8 @@ Claude `/ar_<name>`, Codex `$ar_<name>`. Commands and flags: **[SKILLS.md](SKILL
 
 | Skill | Use it to |
 |---|---|
-| `ar_metaplan` | sharpen an idea: prior evidence, theory, decisive experiment design |
+| `ar_idea` | literature/theory, stable ID, paper summaries and cumulative experiment takeaways |
+| `ar_metaplan` | compatibility entrypoint for `ar_idea` |
 | `ar_plan` | write a plan that opens with an editable 20-line Experiment Card |
 | `ar_dev` | implement and run it; the report opens with Planned vs Actual |
 | `ar_note` | write a focused technical note |

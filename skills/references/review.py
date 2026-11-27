@@ -48,6 +48,9 @@ Decision: {question}
 Worktree: {tree} (branch {branch}, base {base}). See `git diff --stat {base}...HEAD` and `git diff {base}...HEAD`.
 Read directly: the reports under __board__/reports/, __board__/COMPACTION.md, structure.md,
 skills/references/code-style.md in .agents/, and the previous rounds in {review} (respond to the author's replies).
+Read the linked ID-bearing idea and its literature/theory and current conclusion. For results-only
+projects, source/configs are ignored: inspect the actual local files and recorded source fingerprints;
+an empty Git code diff cannot establish parity. Check the fingerprints before accepting.
 
 Judge, citing files, numbers and lines:
 1. Evidence: do the reported numbers exist in the raw artifacts, and do they support the claim at the stated scope?

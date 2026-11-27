@@ -7,6 +7,8 @@ description: Merge the best version of a branch b<i>/<name> (a method section) i
 
 Main receives only the best, compacted, reviewed version. The human approves what survives, unresolved review disagreements and the final `--yes`.
 
+With results-only publication, Git merges transfer board evidence. Transfer the approved source/configs explicitly into main's local checkout before retiring the branch worktree; back up replaced local source under `__board__/notes/local/` and verify fingerprints/parity. Ignored source is not in the archive tag. Keep its provenance in the report, never force-add source.
+
 1. **Open**: work in the branch's worktree `../<project>.branches/b2-<name>`; if it does not exist yet, `python .agents/skills/ar_tree/scripts/ar_tree.py open b2` creates it (with a tab and agent).
 2. **Compact**: follow [compaction](../references/compaction.md) with target = main. Keep only what the paper claims from this section; rerun the headline experiment's full profile once.
 3. **Review**: follow [review](../references/review.md) with `review.py merge`; the reviewer judges paper-readiness.

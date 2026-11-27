@@ -12,7 +12,8 @@ Shared instructions for every agent (Codex reads this file; Claude imports it). 
   
 | Skill | Use it to |
 |---|---|
-| `ar_metaplan <idea>` | sharpen an idea: prior evidence, theory, decisive experiment design |
+| `ar_idea <idea>` | maintain an ID-bearing idea, literature/theory, paper summaries and cumulative takeaways |
+| `ar_metaplan <idea>` | compatibility entrypoint for `ar_idea` |
 | `ar_plan <task>` | write a plan opening with an editable Experiment Card |
 | `ar_dev [vN]` | implement and run it; report opens with Planned vs Actual |
 | `ar_note <topic>` | focused technical note |
@@ -25,6 +26,8 @@ Shared instructions for every agent (Codex reads this file; Claude imports it). 
 
 ## Rules
 
+- Before research planning, resolve `__board__/ideas/I###-<slug>/idea.md`. Plans and reports name the idea ID and exact hypothesis. Every development report updates one concise evidence row and the idea's current conclusion. Detailed paper summaries live in that idea's `papers/summary.md`.
+- Research projects publish only `.gitignore` and curated `__board__/` content. Code/configs/assets remain local; never force-add them. `ar_init` installs this policy; `ar_init <project> --untrack` migrates previously tracked ignored files without deleting local copies. This framework repository itself remains a normal code repository.
 - Reserve `ar_metaplan`, `ar_plan` and `ar_dev` for research ideation, experiment design, implementation, execution and analysis. Routine maintenance (for example downloading a specified file or creating `.gitignore`) uses ordinary tools and proportionate verification; it needs no experiment card, research worktree, report, W&B run or Slack notification.
 - Code follows [code style](.agents/skills/references/code-style.md): reuse first, entity folders with `_build.py` registries, hierarchical YAML configs, one `run.py` without argparse, `structure.md` kept current, no per-version copies.
 - Datasets, checkpoints and large caches are soft links from the machine's asset store listed in `assets.links` (`ASSETS_ROOT` in `__board__/project.env`): read and write through the repository-relative link path, never copy them into the repo; add a line to `assets.links` and rerun `ar_init .` for a new shared folder.

@@ -122,13 +122,13 @@ else:
         script = SCRIPT.parents[2] / "ar_mate/scripts/mate_task.py"
         task = 'Create .gitignore; preserve literal "quotes" and $(text)'
         with self.fake_herdr():
-            result = subprocess.run([sys.executable, str(script), task, "--agent", "codex"],
+            result = subprocess.run([sys.executable, str(script), task, "--agent", "codex", "--name", "maintenance-check"],
                                     cwd=self.repo, text=True, capture_output=True, check=True)
         launched = json.loads(result.stdout)
-        self.assertEqual(launched, {"tab": "w2:t8", "pane": "w2:p28", "agent": "codex", "cwd": str(self.repo)})
+        self.assertEqual(launched, {"name": "maintenance-check", "tab": "w2:t8", "pane": "w2:p28", "agent": "codex", "cwd": str(self.repo)})
         calls = [json.loads(line) for line in self.herdr_log.read_text().splitlines()]
         self.assertEqual(calls[0], ["tab", "create", "--workspace", "w2", "--cwd", str(self.repo),
-                                   "--label", "proj:maintenance", "--no-focus"])
+                                   "--label", "proj:maintenance-check", "--no-focus"])
         self.assertEqual(calls[1][:3], ["pane", "run", "w2:p28"])
         command = shlex.split(calls[1][3])
         self.assertEqual(command[0], "codex")
@@ -173,6 +173,23 @@ else:
                                                   f"1. [minor] ok\nVERDICT: {verdict}\n\n**Verdict**: {verdict}\n")
         sh("git", "add", "__board__/REVIEW.md", cwd=work)
         sh("git", "commit", "-q", "-m", "review", cwd=work)
+
+    def test_close_preserves_living_idea_papers_and_report_takeaway(self):
+        work = self.start("documented")
+        doc = next((work / "__board__/ideas").glob("I*-documented/idea.md"))
+        papers = doc.parent / "papers"
+        papers.mkdir()
+        (papers / "summary.md").write_text("# Paper summary with source references\n")
+        (papers / "paper.pdf").write_bytes(b"paper fixture")
+        with doc.open("a") as handle:
+            handle.write("\n[report](../../reports/r.md): contradicts the hypothesis.\n")
+        self.fill_summary("documented")
+        self.tree("close", "documented", "dead", "--yes")
+        kept = self.repo / doc.relative_to(work)
+        self.assertIn("contradicts", kept.read_text())
+        self.assertTrue((kept.parent / "papers/paper.pdf").exists())
+        self.assertTrue((self.repo / "__board__/reports/r.md").exists())
+        self.assertFalse(work.exists())
 
     def test_branch_requires_compaction_then_builds_branch(self):
         work = self.start("try-b")
@@ -359,7 +376,7 @@ class TaskPromptTests(unittest.TestCase):
         tree = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(tree)
         full = tree.task_prompt("codex", Path("/p"), "train an MLP on MNIST")
-        self.assertTrue(full.startswith("$ar_metaplan train an MLP on MNIST"))
+        self.assertTrue(full.startswith("$ar_idea train an MLP on MNIST"))
         self.assertIn("$ar_plan and then $ar_dev", full)
         self.assertIn("exactly one Slack message", full)
-        self.assertTrue(tree.task_prompt("claude", Path("/p"), "run the specified baseline", quick=True).startswith("/ar_plan run the specified baseline"))
+        self.assertTrue(tree.task_prompt("claude", Path("/p"), "run the specified baseline", quick=True).startswith("/ar_idea run the specified baseline"))

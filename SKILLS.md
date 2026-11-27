@@ -7,10 +7,10 @@ Claude `/ar_<name>`, Codex `$ar_<name>`; scripts run from the project root (`.ag
 ```text
 ar_mate [codex]                                    tab 0, main checkout: the first mate
   ar_tree new <slug> --from b1|main                candidate idea: worktree + tab + agent
-  ar_metaplan -> ar_plan                           you edit the Experiment Card
+  ar_idea -> ar_plan                               idea ID + hypothesis; you edit the Experiment Card
   ar_dev                                           runs via notify_run.py; one Slack message: the final report
   ar_goal                                          optional overnight tuning
-  ar_tree close <slug> dead|parked                 failed: summary only reaches main
+  ar_tree close <slug> dead|parked                 idea + papers + linked evidence reach main
   ar_branch <slug>                                 works: compact + review + into its branch
   ar_merge b1                                      mature branch: compact + review + into main
 ```
@@ -27,7 +27,7 @@ python $T drop b2 [--yes]
 python $T tracker | list [--json] | bury <slug> --question "..." --paths <old paths> [--yes]
 ```
 - Worktrees `<project>/.trees/<slug>` (git-ignored, inside the project) on branch `idea/<slug>`; branches `b<i>/<name>`, numbers never reused, ≤4 active (`AR_MAX_BRANCHES`), names 1-3 general words.
-- Every exit needs a filled summary in main (`__board__/ideas/<slug>.md` or `__board__/branches/b<i>-<name>.md`); code stays in tag `archive/<slug>` / `archive/b<i>-<name>`; raw results go to `~/ar_archive/` (or into main on merge). `--yes` acts; without it, a dry run.
+- Every exit needs a filled summary in main (`__board__/ideas/<slug>.md` or `__board__/branches/b<i>-<name>.md`). Living idea documents, papers and linked evidence are retained. Tags preserve tracked board history; ignored source/raw results stay in the local archive or approved target checkout. `--yes` acts; without it, a dry run.
 - `__board__/TRACKER.md` on main is regenerated on every change.
 
 ## `ar_branch` and `ar_merge`
@@ -62,7 +62,8 @@ python .agents/skills/ar_notify/scripts/slack_notify.py --report __board__/repor
 ## Planning, running, notes
 | Skill | Run | Notes |
 |---|---|---|
-| `ar_metaplan` | `ar_metaplan "<idea>"` | evidence map, theory, design; ends with a draft card and a planning prompt |
+| `ar_idea` | `ar_idea "<idea>"` | `ideas/I###-<slug>/idea.md`, detailed `papers/summary.md`, theory and cumulative takeaways |
+| `ar_metaplan` | `ar_metaplan "<idea>"` | compatibility entrypoint for `ar_idea` |
 | `ar_plan` | `ar_plan "<task>"` | Experiment Card (≤20 lines, ≤2 synthetic previews) + implementation appendix; edit the card before running |
 | `ar_dev` | `ar_dev [vN]` | follows the card; tiny first; report = Planned vs Actual card, then methods, findings, reproduction (commit SHA) |
 | `ar_note` | `ar_note "<topic>"` | `__board__/notes/NN.<slug>.md` with a TL;DR |

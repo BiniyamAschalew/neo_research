@@ -28,6 +28,8 @@ Branches are named by number (`b2`), full name (`b2/ensembles`) or short name. N
 
 ## Before planning anything
 
+New worktrees receive an ID-bearing living idea and `IDEA.md` pointer. Read `ar_idea` before planning; `--quick` may reuse existing evidence but cannot bypass grounding. With the results-only Git policy, worktrees do not inherit ignored code: inspect the parent checkout's local source and copy only the needed source/configs into the worktree, preserving asset symlinks and excluding datasets/checkpoints/caches. Record the source paths/fingerprints. A branch/tag archives board evidence; ignored source is retained in the local archive when retiring a worktree.
+
 Read `__board__/TRACKER.md`, then `__board__/ideas/*.md` and `__board__/branches/*.md` in the main checkout. Do not repeat a failed approach unless its "Don't retry unless" condition now holds; say which. Agree with the human where a new idea starts: inside the branch it belongs to (`--from b2`), or from main only when it fits no existing section.
 
 ## Closing and summaries

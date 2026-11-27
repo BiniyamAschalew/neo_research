@@ -36,7 +36,7 @@ import sys
 
 REGISTRY = "__board__/ideas.md"
 SUMMARIES = "__board__/ideas"
-COLUMNS = ["slug", "status", "question", "branch", "base", "worktree", "tab", "pane", "created", "closed", "agent", "kind"]
+COLUMNS = ["slug", "status", "question", "branch", "base", "worktree", "tab", "pane", "created", "closed", "agent", "kind", "idea_id"]
 BRANCHES = "__board__/branches"
 TRACKER = "__board__/TRACKER.md"
 REGISTRY_FILES = [REGISTRY, TRACKER]
@@ -54,6 +54,9 @@ _SLACK.loader.exec_module(SLACK)
 _AGENTS = importlib.util.spec_from_file_location("agents", Path(__file__).resolve().parents[2] / "references/agents.py")
 AGENTS = importlib.util.module_from_spec(_AGENTS)
 _AGENTS.loader.exec_module(AGENTS)
+_IDEAS = importlib.util.spec_from_file_location("ideas", Path(__file__).resolve().parents[2] / "ar_idea/scripts/idea.py")
+IDEAS = importlib.util.module_from_spec(_IDEAS)
+_IDEAS.loader.exec_module(IDEAS)
 
 
 TREES = ".trees"  # every worktree lives inside the project, ignored via .git/info/exclude
@@ -232,9 +235,10 @@ def task_prompt(agent, root, task, quick=False):
     if not task:
         return context + " Then wait for instructions."
     p = AGENTS.spec(agent)["prefix"]
-    first, rest = (f"{p}ar_plan", f"{p}ar_dev") if quick else (f"{p}ar_metaplan", f"{p}ar_plan and then {p}ar_dev")
+    first, rest = (f"{p}ar_idea", f"{p}ar_plan and then {p}ar_dev")
     return (f"{first} {task}\n\n{context} When it is done, continue with {rest} yourself, without waiting for "
-            f"approval: you are authorized to run the whole task end to end. Ask only if something blocks the work. "
+            f"approval if the idea disposition permits experiments; otherwise report the concrete refinement or stop reason. "
+            f"You are authorized for the task end to end. Ask only if something blocks the work. "
             f"Keep runs quiet (notify_run.py without --notify); the task sends exactly one Slack message, "
             f"ar_dev's final report.")
 
@@ -284,15 +288,17 @@ def cmd_new(args):
     git("worktree", "add", str(tree), "-b", branch, args.base, cwd=root)
     brief = tree / "__board__/IDEA.md"
     brief.parent.mkdir(parents=True, exist_ok=True)
+    idea = IDEAS.create(tree, args.slug, args.question)
     brief.write_text(f"# Idea: {args.slug}\n\n**Question**: {args.question}\n\n**Branch**: `{branch}` from `{args.base}` @ {base_sha}\n"
+                     f"\n**Idea**: {idea.parent.name.split('-')[0]} — [living document]({idea.relative_to(tree / '__board__').as_posix()})\n"
                      f"\nAn exploration: work only inside this worktree. It ends as `ar_tree close {args.slug} dead|parked` "
                      f"(summary only) or, when it works, through ar_branch into its parent branch.\n")
-    git("add", "__board__/IDEA.md", cwd=tree)
+    git("add", "__board__/IDEA.md", str(idea.parent.relative_to(tree)), cwd=tree)
     git("commit", "-q", "-m", f"idea: start {args.slug}", cwd=tree)
     link_shared(tree, root)
     row = dict(slug=args.slug, status="active", question=args.question, branch=branch, base=f"{args.base}@{base_sha}",
                worktree=str(tree), tab="", pane="", created=date.today().isoformat(), closed="", agent=args.agent,
-               kind="idea")
+               kind="idea", idea_id=idea.parent.name.split("-")[0])
     if not args.no_herdr:
         created = create_herdr_tab(tree, f"{root.name}:{args.slug}")
         if created:
@@ -567,12 +573,13 @@ def cmd_close(args):
         return 1 if summary_problems(summary) and args.yes else 0
     if not git("tag", "--list", f"archive/{args.slug}", cwd=root):
         git("tag", f"archive/{args.slug}", row["branch"], cwd=root)
+    evidence = IDEAS.preserve(root, tree, args.slug) if has_tree else []
     if raw:
         move_raw(tree, raw, dest)
     tab = row["tab"]
     row.update(status=args.verdict, closed=date.today().isoformat(), worktree="", tab="", pane="")
     write_rows(root, rows)
-    commit_board(root, [str(summary.relative_to(root)), *REGISTRY_FILES], f"ideas: close {args.slug} ({args.verdict})")
+    commit_board(root, [str(summary.relative_to(root)), *REGISTRY_FILES, *evidence], f"ideas: close {args.slug} ({args.verdict})")
     retire(root, {**row, "tab": tab}, tree, has_tree, args.verdict != "parked", plan)
     plan["status"] = "done"
     print(json.dumps(plan, indent=2))
@@ -647,6 +654,7 @@ def cmd_branch(args):
             git("branch", "-D", target, cwd=root)
         raise
     git("tag", f"archive/{args.slug}", row["branch"], cwd=root)
+    evidence = IDEAS.preserve(root, tree, args.slug) if has_tree else []
     if raw:
         move_raw(tree, raw, unique(ARCHIVE / root.name / args.slug), main=opened)
     tab = row["tab"]
@@ -656,7 +664,7 @@ def cmd_branch(args):
                          branch=target, base=f"{base}@{git('rev-parse', '--short', base, cwd=root)}", worktree="",
                          tab="", pane="", created=date.today().isoformat(), closed="", agent=row["agent"], kind="branch"))
     write_rows(root, rows)
-    commit_board(root, [str(summary.relative_to(root)), *REGISTRY_FILES], f"ideas: {args.slug} branched into {target}")
+    commit_board(root, [str(summary.relative_to(root)), *REGISTRY_FILES, *evidence], f"ideas: {args.slug} branched into {target}")
     retire(root, {**row, "tab": tab}, tree, has_tree, True, plan)
     plan["status"] = "done"
     print(json.dumps(plan, indent=2))
@@ -809,7 +817,7 @@ def parser():
     new.add_argument("--agent", default=AGENTS.DEFAULT, help="Agent started in the idea's Herdr tab: claude, codex, ... (default $AR_AGENT or claude)")
     new.add_argument("--env", help="Conda env for the tab (default: CONDA_ENV / ENV_ACTIVATE in __board__/project.env)")
     new.add_argument("--task", help="Hand the whole task to the tab's agent: it runs ar_metaplan -> ar_plan -> ar_dev on its own")
-    new.add_argument("--quick", action="store_true", help="With --task: skip ar_metaplan for an already specified experiment; still runs ar_plan and ar_dev")
+    new.add_argument("--quick", action="store_true", help="Reuse existing idea grounding for a specified experiment; still requires an idea ID")
     new.add_argument("--no-herdr", action="store_true")
     lst = sub.add_parser("list")
     lst.add_argument("--json", action="store_true")
