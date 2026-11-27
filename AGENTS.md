@@ -9,7 +9,7 @@ Shared instructions for every agent (Codex reads this file; Claude imports it). 
 3. Read plans, reports and notes only when the task needs them. Do not create `__board__/` at startup; skills create what they need ([board conventions](.agents/skills/references/board.md)).
 
 ## Skills
-
+  
 | Skill | Use it to |
 |---|---|
 | `ar_metaplan <idea>` | sharpen an idea: prior evidence, theory, decisive experiment design |
